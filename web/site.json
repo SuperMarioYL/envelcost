@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "name": "envelcost",
+  "github": "https://github.com/SuperMarioYL/envelcost",
+  "host": "envelcost.lei6393.com",
+  "lang": { "primary": "zh", "toggle": true },
+  "accent": ["#3a9b7a"],
+  "hero": {
+    "eyebrow": { "zh": "本地 · 离线 · 单进程", "en": "Local · offline · one process" },
+    "headline": {
+      "zh": "同一 DeepSeek，三种 harness\n烧的 token 差 4 倍，算清你的 GPU 撑几座",
+      "en": "Same DeepSeek, three harnesses\n4x the token burn, and you'll know how many seats your rack holds"
+    },
+    "sub": {
+      "zh": "把一组编码任务在三种 harness 下离线回放，抓出每个 harness 多烧的 token，再投影到你真实的 GPU 座位数和每座成本。单进程，数据不出境。",
+      "en": "Replays a set of coding tasks across three harnesses offline, isolates the extra tokens each harness burns, then projects it onto your real GPU seat count and per-seat cost. One process, data stays on-prem."
+    },
+    "command": "envelcost project --gpus 8xH100 --seats 50",
+    "cta": { "zh": "开始测算", "en": "Start measuring" },
+    "ctaGithub": { "zh": "在 GitHub 查看", "en": "View on GitHub" }
+  },
+  "advantages": [
+    {
+      "title": { "zh": "同一道题，三种 harness，差 4 倍", "en": "Same task, three harnesses, 4x the gap" },
+      "body": {
+        "zh": "把同一组编码任务在三种 harness 下回放到同一个 DeepSeek，直接打出每个 harness 多烧多少 token。当前 5 个任务全部落在 2.8 倍以上——差异是真的，而且可复现。",
+        "en": "Replays the same coding tasks against the same DeepSeek under three harnesses and prints exactly how many extra tokens each one burns. Today all five tasks land above 2.8x — the gap is real, and reproducible."
+      },
+      "chips": [
+        "› 5 任务 × 3 harness",
+        "› 全部 > 2.8x · 可复现"
+      ]
+    },
+    {
+      "title": { "zh": "投影到你真实的 GPU 座位", "en": "Project it onto your real GPU seats" },
+      "body": {
+        "zh": "给定你的 GPU 数和并发座位数，按你测出来的差距，告诉你哪个 harness 撑得住、哪个撑不住、每座多少钱、整柜 capex 多少。换一台机器、换个座位数，重算只需一条命令。",
+        "en": "Give it your GPU count and concurrent seat target, and from the gap you measured it tells you which harness fits, which doesn't, the cost per seat, and the rack's total capex. Swap a GPU or a seat count, re-run one command."
+      },
+      "chips": [
+        "› H100 / H200 / H3",
+        "› 每座成本 · 整柜 capex"
+      ]
+    },
+    {
+      "title": { "zh": "离线 · 可复现 · 数据不出境", "en": "Offline, reproducible, data stays on-prem" },
+      "body": {
+        "zh": "核心测算不联网、不要 API key——按实际请求文本离线算出每个 harness 多烧的 token，谁都能复跑出同一张表。可选联网模式用真实 DeepSeek 用量把输出 token 填齐。",
+        "en": "The core run needs no network and no API key — it works out the extra tokens each harness burns from the actual request text offline, so anyone can reproduce the same table. An optional online mode fills in real DeepSeek output-token usage."
+      },
+      "chips": [
+        "› 无联网 · 无 API key",
+        "› 离线算 · 谁都能复跑"
+      ]
+    },
+    {
+      "title": { "zh": "单进程 · 自托管 · MIT", "en": "One process, self-hosted, MIT" },
+      "body": {
+        "zh": "一条命令装好，一个进程，无数据库。状态是 .envelcost/ 下的几个 JSON 文件。没有常驻服务、没有云、不需要账号。开源 MIT，自托管免费。",
+        "en": "Install in one command, one process, no database. State is a handful of JSON files under .envelcost/. No daemon, no cloud, no account. Open source under MIT, free to self-host."
+      },
+      "chips": [
+        "› 无 DB · 无常驻服务",
+        "› 自托管免费 · MIT"
+      ]
+    }
+  ],
+  "scene": {
+    "kind": "hub-nodes",
+    "nodes": ["Claude Code", "OpenCode", "Pi"]
+  },
+  "cta": {
+    "headline": {
+      "zh": "把 4 倍的 token 差距，算成你买得起几张卡",
+      "en": "Turn a 4x token gap into how many GPUs you can actually afford"
+    },
+    "sub": {
+      "zh": "开源、MIT、自托管免费。容量测算这一核心动作，永不设墙。",
+      "en": "Open source, MIT, free to self-host. The core act of sizing your capacity is never gated."
+    },
+    "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
+  },
+  "footer": {
+    "tag": {
+      "zh": "把跨 harness 的 token 成本差距，算成信创 GPU 集群的容量数字",
+      "en": "Turning cross-harness token-cost gaps into capacity numbers for on-prem GPU clusters"
+    }
+  }
+}
