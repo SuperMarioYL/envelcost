@@ -1,0 +1,321 @@
+# envelcost canonical benchmark — 5 SWE-bench-mini-shaped coding-agent tasks.
+#
+# Each task carries: a prompt, the tool set the agent exercises, the tool-call
+# sequence over N turns, and the repo/language. The tool schemas below mirror
+# the real OpenAI function-calling shape (verbose JSON) so the openai-shape
+# envelope overhead is genuinely large and reproducible. deepseek-native uses
+# the compact inline form, hence the >2x cross-harness variance.
+#
+# These tasks are synthetic but shaped to the real per-turn cost profile of a
+# multi-turn coding agent: the system prompt + full tools array stay in
+# context every turn, and each completed tool-call round trip accumulates.
+# `schema_unverified: true` (see mvp_plan frontmatter) — the SWE-bench format
+# itself has no local sample; these are reproducible stand-ins.
+
+benchmark: swe-bench-mini
+model: deepseek-v4-flash
+tasks:
+  - task_id: swe-bench-mini-001
+    repo: astropy/astropy
+    language: python
+    turns: 8
+    prompt: |
+      Fix the WCS.celestial transform in astropy.wcs so that pixel-to-world
+      round-trips on a distorted SIP header return coordinates within 1e-7
+      arcsec of the reference implementation. Add a regression test using the
+      sample FITS header in tests/data/sip.fits.
+    tool_call_sequence: [0, 0, 1, 2, 1, 0, 3, 2]
+    tools:
+      - name: str_replace_editor
+        description: >
+          A tool for viewing, creating and editing files. Supports view (with
+          line ranges), create, str_replace (exact unique string replacement),
+          and insert (insert text at a given line number). Use this to inspect
+          and patch the codebase. Always confirm uniqueness of the old_string
+          before replacing.
+        parameters:
+          type: object
+          properties:
+            command:
+              type: string
+              enum: [view, create, str_replace, insert]
+              description: The edit operation to perform.
+            path:
+              type: string
+              description: Absolute path to the target file.
+            old_str:
+              type: string
+              description: The exact unique text to replace (str_replace only).
+            new_str:
+              type: string
+              description: The replacement text (str_replace / insert only).
+            file_text:
+              type: string
+              description: Full file content (create only).
+          required: [command, path]
+      - name: find_in_repo
+        description: >
+          Grep-like search across the repository for a regular expression,
+          returning matching file paths and line numbers with context.
+          Use to locate call sites and definitions before editing.
+        parameters:
+          type: object
+          properties:
+            pattern:
+              type: string
+              description: Regular expression to search for.
+            glob:
+              type: string
+              description: Optional glob filter (e.g. '*.py').
+            context:
+              type: integer
+              description: Lines of context around each match.
+          required: [pattern]
+      - name: run_tests
+        description: >
+          Run the project's test suite (pytest) for a given path or test id and
+          return the pass/fail summary plus the first failing traceback.
+          Use after edits to verify the regression test passes.
+        parameters:
+          type: object
+          properties:
+            test_path:
+              type: string
+              description: Test id or path (e.g. tests/test_wcs.py::test_roundtrip).
+            markers:
+              type: string
+              description: Optional pytest -m marker expression.
+          required: [test_path]
+      - name: finish
+        description: >
+          Signal that the task is complete and the diff is ready for review.
+          Call this exactly once at the end; include a one-paragraph summary.
+        parameters:
+          type: object
+          properties:
+            summary:
+              type: string
+              description: One-paragraph summary of the change.
+          required: [summary]
+
+  - task_id: swe-bench-mini-002
+    repo: django/django
+    language: python
+    turns: 10
+    prompt: |
+      In django.contrib.auth, the PasswordResetConfirmView does not invalidate
+      the token after a successful reset on backends that store token hashes.
+      Patch the flow to mark the token used and add a test confirming a second
+      reset attempt with the same token is rejected.
+    tool_call_sequence: [0, 1, 0, 2, 1, 0, 1, 3, 2, 3]
+    tools:
+      - name: str_replace_editor
+        description: >
+          A tool for viewing, creating and editing files. Supports view, create,
+          str_replace and insert. Confirm uniqueness of old_string before
+          replacing; prefer minimal patches.
+        parameters:
+          type: object
+          properties:
+            command: {type: string, enum: [view, create, str_replace, insert]}
+            path: {type: string}
+            old_str: {type: string}
+            new_str: {type: string}
+            file_text: {type: string}
+          required: [command, path]
+      - name: find_in_repo
+        description: >
+          Repository-wide regex search returning matching file paths and line
+          numbers with context. Locate call sites before editing.
+        parameters:
+          type: object
+          properties:
+            pattern: {type: string}
+            glob: {type: string}
+            context: {type: integer}
+          required: [pattern]
+      - name: run_tests
+        description: >
+          Run pytest for a path or test id and return pass/fail summary plus the
+          first failing traceback. Use after edits to confirm the fix.
+        parameters:
+          type: object
+          properties:
+            test_path: {type: string}
+            markers: {type: string}
+          required: [test_path]
+      - name: finish
+        description: >
+          Signal task completion and include a one-paragraph summary of the
+          change for review.
+        parameters:
+          type: object
+          properties:
+            summary: {type: string}
+          required: [summary]
+
+  - task_id: swe-bench-mini-003
+    repo: scikit-learn/scikit-learn
+    language: python
+    turns: 9
+    prompt: |
+      ColumnTransformer.fit_transform silently drops columns whose dtype is not
+      in the configured list when remainder='passthrough'. Emit a UserWarning
+      listing the dropped columns and add a non-regression test.
+    tool_call_sequence: [1, 0, 1, 0, 2, 1, 0, 2, 3]
+    tools:
+      - name: str_replace_editor
+        description: >
+          A tool for viewing, creating and editing files. Supports view, create,
+          str_replace and insert. Confirm uniqueness of old_string before
+          replacing; prefer minimal patches.
+        parameters:
+          type: object
+          properties:
+            command: {type: string, enum: [view, create, str_replace, insert]}
+            path: {type: string}
+            old_str: {type: string}
+            new_str: {type: string}
+            file_text: {type: string}
+          required: [command, path]
+      - name: find_in_repo
+        description: >
+          Repository-wide regex search returning matching file paths and line
+          numbers with context. Locate call sites before editing.
+        parameters:
+          type: object
+          properties:
+            pattern: {type: string}
+            glob: {type: string}
+            context: {type: integer}
+          required: [pattern]
+      - name: run_tests
+        description: >
+          Run pytest for a path or test id and return pass/fail summary plus the
+          first failing traceback. Use after edits to confirm the fix.
+        parameters:
+          type: object
+          properties:
+            test_path: {type: string}
+            markers: {type: string}
+          required: [test_path]
+      - name: finish
+        description: >
+          Signal task completion and include a one-paragraph summary of the
+          change for review.
+        parameters:
+          type: object
+          properties:
+            summary: {type: string}
+          required: [summary]
+
+  - task_id: swe-bench-mini-004
+    repo: pandas-dev/pandas
+    language: python
+    turns: 11
+    prompt: |
+      DataFrame.groupby(as_index=False).agg(named_aggregation) raises
+      SpecificationError when the named-aggregation dict has a tuple key whose
+      first element is a list. Coerce list keys to tuples and add a test.
+    tool_call_sequence: [0, 1, 0, 2, 1, 0, 1, 2, 0, 2, 3]
+    tools:
+      - name: str_replace_editor
+        description: >
+          A tool for viewing, creating and editing files. Supports view, create,
+          str_replace and insert. Confirm uniqueness of old_string before
+          replacing; prefer minimal patches.
+        parameters:
+          type: object
+          properties:
+            command: {type: string, enum: [view, create, str_replace, insert]}
+            path: {type: string}
+            old_str: {type: string}
+            new_str: {type: string}
+            file_text: {type: string}
+          required: [command, path]
+      - name: find_in_repo
+        description: >
+          Repository-wide regex search returning matching file paths and line
+          numbers with context. Locate call sites before editing.
+        parameters:
+          type: object
+          properties:
+            pattern: {type: string}
+            glob: {type: string}
+            context: {type: integer}
+          required: [pattern]
+      - name: run_tests
+        description: >
+          Run pytest for a path or test id and return pass/fail summary plus the
+          first failing traceback. Use after edits to confirm the fix.
+        parameters:
+          type: object
+          properties:
+            test_path: {type: string}
+            markers: {type: string}
+          required: [test_path]
+      - name: finish
+        description: >
+          Signal task completion and include a one-paragraph summary of the
+          change for review.
+        parameters:
+          type: object
+          properties:
+            summary: {type: string}
+          required: [summary]
+
+  - task_id: swe-bench-mini-005
+    repo: pytest-dev/pytest
+    language: python
+    turns: 7
+    prompt: |
+      pytest.warns() does not surface the warning message in the failure
+      traceback when no warning is raised, making flaky CI hard to triage.
+      Include the expected warning category and message in the AssertionError
+      and add a test asserting the improved message.
+    tool_call_sequence: [1, 0, 2, 1, 0, 2, 3]
+    tools:
+      - name: str_replace_editor
+        description: >
+          A tool for viewing, creating and editing files. Supports view, create,
+          str_replace and insert. Confirm uniqueness of old_string before
+          replacing; prefer minimal patches.
+        parameters:
+          type: object
+          properties:
+            command: {type: string, enum: [view, create, str_replace, insert]}
+            path: {type: string}
+            old_str: {type: string}
+            new_str: {type: string}
+            file_text: {type: string}
+          required: [command, path]
+      - name: find_in_repo
+        description: >
+          Repository-wide regex search returning matching file paths and line
+          numbers with context. Locate call sites before editing.
+        parameters:
+          type: object
+          properties:
+            pattern: {type: string}
+            glob: {type: string}
+            context: {type: integer}
+          required: [pattern]
+      - name: run_tests
+        description: >
+          Run pytest for a path or test id and return pass/fail summary plus the
+          first failing traceback. Use after edits to confirm the fix.
+        parameters:
+          type: object
+          properties:
+            test_path: {type: string}
+            markers: {type: string}
+          required: [test_path]
+      - name: finish
+        description: >
+          Signal task completion and include a one-paragraph summary of the
+          change for review.
+        parameters:
+          type: object
+          properties:
+            summary: {type: string}
+          required: [summary]
