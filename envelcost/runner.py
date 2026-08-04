@@ -52,6 +52,7 @@ class VarianceReport:
     tasks_above_floor: int
     gate_passed: bool  # >=3/5 tasks above 2x (done bar)
     floor_passed: bool  # >=3/5 tasks above 1.5x (kill floor)
+    floor_evaluable: bool  # False when <2 harnesses ran (gate cannot fire)
 
     def to_dict(self) -> dict:
         return {
@@ -63,6 +64,7 @@ class VarianceReport:
             "tasks_above_floor": self.tasks_above_floor,
             "gate_passed": self.gate_passed,
             "floor_passed": self.floor_passed,
+            "floor_evaluable": self.floor_evaluable,
         }
 
 
@@ -142,8 +144,13 @@ class Runner:
             if peak >= VARIANCE_FLOOR:
                 above_floor += 1
         n = len(per_task)
+        # mvp_plan §8 kill #1 is about CROSS-envelope variance: a single-harness
+        # (baseline-only) run cannot evaluate it. The kill floor is therefore
+        # skipped (held, not tripped) when fewer than 2 distinct harnesses were
+        # measured — a single-harness run must not falsify the thesis.
+        floor_evaluable = len(harnesses) >= 2
         gate = n >= 3 and above_gate >= 3
-        floor = not (n >= 3 and above_floor < 3)  # halt only if <1.5x on >=3/5
+        floor = (not (n >= 3 and above_floor < 3)) if floor_evaluable else True
         return VarianceReport(
             model=self.model,
             task_count=n,
@@ -153,6 +160,7 @@ class Runner:
             tasks_above_floor=above_floor,
             gate_passed=gate,
             floor_passed=floor,
+            floor_evaluable=floor_evaluable,
         )
 
     # --- persistence ---
@@ -178,12 +186,22 @@ class Runner:
         return out
 
     # --- online (optional; schema_unverified) ---
-    def run_online(self, base_url: str | None = None) -> list[EnvelopeProfile]:
+    def run_online(
+        self,
+        base_url: str | None = None,
+        harnesses: tuple[str, ...] = DEFAULT_HARNESSES,
+        task_ids: list[str] | None = None,
+    ) -> list[EnvelopeProfile]:
         """Replay envelopes through the live DeepSeek API. Best-effort.
 
         Requires ``DEEPSEEK_API_KEY``. DeepSeek's usage-response shape is flagged
         ``schema_unverified`` (plan frontmatter): on a shape mismatch we surface a
         clear warning and fall back to the offline measurement rather than crash.
+
+        ``harnesses`` / ``task_ids`` filter the grid exactly as in
+        :meth:`run_benchmark`, so ``--online --harnesses <X> --task <Y>`` bills
+        only the selected (harness, task) pairs through the paid API — never the
+        full 5-task × 3-envelope grid. Defaults mirror :meth:`run_benchmark`.
         """
         import httpx
 
@@ -194,10 +212,13 @@ class Runner:
             )
         base = base_url or os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
         url = f"{base.rstrip('/')}/v1/chat/completions"
+        ids = task_ids or [t.task_id for t in self.tasks.tasks]
         profiles: list[EnvelopeProfile] = []
         with httpx.Client(timeout=120) as client:
-            for task in self.tasks.tasks:
-                for hname, env in self.envelopes.items():
+            for tid in ids:
+                task = self.tasks.by_id(tid)
+                for hname in harnesses:
+                    env = self.envelopes[hname] if hname in self.envelopes else get_envelope(hname)
                     envelope_text = env.serialize(task)
                     body = {
                         "model": self.model,

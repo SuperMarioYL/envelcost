@@ -64,6 +64,29 @@ def _parse_harnesses(raw: str) -> tuple[str, ...]:
     return tuple(parts) or DEFAULT_HARNESSES
 
 
+def _resolve_task_ids(all_ids: list[str], task: str) -> list[str]:
+    """Resolve a ``--task`` value into concrete task ids for the online path.
+
+    The default ``swe-bench-mini`` is the shared set prefix of all 5 canonical
+    tasks, so it resolves to the full set; a specific id like
+    ``swe-bench-mini-001`` resolves to just that task. Comma-separated lists are
+    accepted. Each part matches either an exact id or a prefix. Raises
+    :class:`typer.BadParameter` if nothing matches, so a typoed ``--task`` is
+    surfaced before any API call is billed.
+    """
+    parts = [p.strip() for p in task.split(",") if p.strip()]
+    selected: list[str] = []
+    for p in parts:
+        for tid in all_ids:
+            if (tid == p or tid.startswith(p)) and tid not in selected:
+                selected.append(tid)
+    if not selected:
+        raise typer.BadParameter(
+            f"no tasks match --task '{task}'. available: {', '.join(all_ids)}"
+        )
+    return selected
+
+
 @app.command()
 def run(
     task: str = typer.Option(
@@ -85,7 +108,14 @@ def run(
     harness_list = _parse_harnesses(harnesses)
     runner = Runner(store_dir=store) if store else Runner()
     if online:
-        profiles = runner.run_online()
+        # Thread --harnesses (and a resolved --task filter) into the online path
+        # so it bills only the selected (harness, task) pairs through the paid
+        # DeepSeek API — never the full 5-task x 3-envelope grid. The offline
+        # path keeps its existing run_benchmark(harnesses=...) forwarding.
+        task_ids = _resolve_task_ids(
+            [t.task_id for t in runner.tasks.tasks], task
+        )
+        profiles = runner.run_online(harnesses=harness_list, task_ids=task_ids)
     else:
         profiles = runner.run_benchmark(harnesses=harness_list)
     table = Reporter(store_dir=runner.store_dir).render(
@@ -94,12 +124,24 @@ def run(
     typer.echo(table)
     vr = runner.variance_report(profiles)
     typer.echo("")
+    if vr.floor_evaluable:
+        floor_status = "HELD" if vr.floor_passed else "BROKEN — halt"
+    else:
+        floor_status = "SKIPPED (<2 harnesses)"
     typer.echo(
         f"m1 variance gate: {vr.tasks_above_gate}/{vr.task_count} tasks above 2.0x "
         f"(done bar {'PASSED' if vr.gate_passed else 'NOT YET'}); "
-        f"kill floor (1.5x) {'HELD' if vr.floor_passed else 'BROKEN — halt'}"
+        f"kill floor (1.5x) {floor_status}"
     )
-    if not vr.floor_passed:
+    if not vr.floor_evaluable:
+        # mvp_plan §8 kill #1 is about cross-envelope variance; a single-harness
+        # (baseline-only) run cannot evaluate it — surface a clear note and do
+        # NOT falsify the thesis / exit 1.
+        typer.echo(
+            f"insufficient harnesses for cross-variance evaluation "
+            f"(ran {len(vr.harnesses)}; need >=2); skipping kill gate"
+        )
+    elif not vr.floor_passed:
         typer.echo(
             "WARNING: cross-envelope variance below 1.5x on >=3/5 tasks — "
             "core thesis falsified (mvp_plan §8 kill #1). Halt.",

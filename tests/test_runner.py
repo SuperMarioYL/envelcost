@@ -95,3 +95,32 @@ def test_three_envelope_benchmark_includes_claude_code(runner):
     }
     for p in cc:
         assert p.multiplier_vs_baseline >= openai_map[p.task_id]
+
+
+def test_single_harness_variance_report_skips_kill_gate(runner):
+    """fix-single-harness-run-falsifies-thesis: a single-harness (baseline-only)
+    run cannot evaluate cross-envelope variance, so the m1 kill gate must be
+    SKIPPED — not tripped. Previously peak=1.0 for every task made floor_passed
+    False and the CLI falsified the thesis + exit(1)."""
+    profiles = runner.run_benchmark(harnesses=("deepseek-native",))
+    assert len(profiles) == 5
+    vr = runner.variance_report(profiles)
+    assert vr.harnesses == ("deepseek-native",)
+    assert len(vr.harnesses) < 2
+    assert vr.floor_evaluable is False
+    # gate is held (skipped), NOT broken — the thesis is not falsified.
+    assert vr.floor_passed is True
+    # to_dict surfaces the new flag so reports/JSON stay self-describing.
+    assert vr.to_dict()["floor_evaluable"] is False
+
+
+def test_two_harness_variance_report_evaluates_kill_gate(runner):
+    """With >=2 harnesses the kill gate is evaluable and the m1 floor holds
+    (openai-shape > 1.5x on every task) — guarding against the skip logic
+    accidentally neutering the real gate."""
+    profiles = runner.run_benchmark(harnesses=DEFAULT_HARNESSES)
+    vr = runner.variance_report(profiles)
+    assert len(vr.harnesses) == 2
+    assert vr.floor_evaluable is True
+    assert vr.floor_passed is True
+    assert vr.gate_passed is True
