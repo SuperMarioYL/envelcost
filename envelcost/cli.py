@@ -107,17 +107,18 @@ def run(
     """Replay the benchmark through N envelope configs and assert the m1 gate."""
     harness_list = _parse_harnesses(harnesses)
     runner = Runner(store_dir=store) if store else Runner()
+    # Resolve --task once and forward it into BOTH the online and offline paths
+    # so `envelcost run --task swe-bench-mini-001` measures only that task in
+    # either mode (fix-offline-run-ignores-task-filter: previously the offline /
+    # default branch called run_benchmark with no task_ids, so --task was a dead
+    # option in offline mode — the v0.2.0 fix only closed the online half).
+    task_ids = _resolve_task_ids(
+        [t.task_id for t in runner.tasks.tasks], task
+    )
     if online:
-        # Thread --harnesses (and a resolved --task filter) into the online path
-        # so it bills only the selected (harness, task) pairs through the paid
-        # DeepSeek API — never the full 5-task x 3-envelope grid. The offline
-        # path keeps its existing run_benchmark(harnesses=...) forwarding.
-        task_ids = _resolve_task_ids(
-            [t.task_id for t in runner.tasks.tasks], task
-        )
         profiles = runner.run_online(harnesses=harness_list, task_ids=task_ids)
     else:
-        profiles = runner.run_benchmark(harnesses=harness_list)
+        profiles = runner.run_benchmark(harnesses=harness_list, task_ids=task_ids)
     table = Reporter(store_dir=runner.store_dir).render(
         profiles, runner.variance_report(profiles).to_dict()
     )

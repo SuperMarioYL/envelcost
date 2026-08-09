@@ -158,3 +158,55 @@ def test_online_bad_task_surfaces_before_billing(cli_runner, tmp_path, monkeypat
     )
     assert result.exit_code == 2  # typer.BadParameter -> usage error
     assert len(fake.posts) == 0  # nothing billed
+
+
+def test_offline_run_respects_task_filter(cli_runner, tmp_path):
+    """fix-offline-run-ignores-task-filter: the DEFAULT (offline) `run` must
+    honor --task. `envelcost run --task swe-bench-mini-001` (no --online) must
+    measure only that one task — not all 5. Previously the offline branch called
+    run_benchmark with no task_ids, so --task was a dead option in offline mode
+    (the v0.2.0 fix only closed the online half)."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app,
+        [
+            "run",
+            "--harnesses", "openai-shape",
+            "--task", "swe-bench-mini-001",
+            "--store", str(store),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    profiles = Runner(store_dir=store).load_profiles()
+    # 1 task x 1 harness — NOT 5 x 1.
+    assert {p.task_id for p in profiles} == {"swe-bench-mini-001"}
+    assert {p.harness for p in profiles} == {"openai-shape"}
+    assert len(profiles) == 1
+    # single-harness offline run -> kill gate skipped, no falsification/halt.
+    assert "skipping kill gate" in result.output
+    assert "falsified" not in result.output
+
+
+def test_offline_run_default_task_runs_full_set(cli_runner, tmp_path):
+    """Guard: the default --task (swe-bench-mini, the shared prefix of all 5
+    canonical tasks) still resolves to the full 5-task set offline — the
+    fix-offline-run-ignores-task-filter change must not narrow the default."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app, ["run", "--harnesses", "openai-shape", "--store", str(store)]
+    )
+    assert result.exit_code == 0, result.output
+    profiles = Runner(store_dir=store).load_profiles()
+    assert {p.harness for p in profiles} == {"openai-shape"}
+    assert len({p.task_id for p in profiles}) == 5
+
+
+def test_offline_bad_task_surfaces_before_run(cli_runner, tmp_path):
+    """A typoed --task raises BadParameter (exit 2) in offline mode too — the
+    resolver now runs in the offline path, so a bad --task fails fast."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app,
+        ["run", "--task", "nope-not-a-task", "--store", str(store)],
+    )
+    assert result.exit_code == 2  # typer.BadParameter -> usage error

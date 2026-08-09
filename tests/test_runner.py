@@ -124,3 +124,43 @@ def test_two_harness_variance_report_evaluates_kill_gate(runner):
     assert vr.floor_evaluable is True
     assert vr.floor_passed is True
     assert vr.gate_passed is True
+
+
+def test_store_upsert_no_duplicates_across_runs(runner):
+    """fix-store-appends-duplicate-profiles: repeated run_benchmark must NOT
+    append duplicate rows. Previously _store opened profiles.jsonl in append
+    mode with no dedup, so a second run doubled the row count read by
+    report/project (and the file grew without bound)."""
+    runner.run_benchmark(harnesses=DEFAULT_HARNESSES)
+    runner.run_benchmark(harnesses=DEFAULT_HARNESSES)  # same grid, second time
+    loaded = runner.load_profiles()
+    # 5 tasks x 2 harnesses = 10, NOT 20 — upsert by (task_id, harness), last-wins.
+    assert len(loaded) == 10
+    keys = {(p.task_id, p.harness) for p in loaded}
+    assert len(keys) == 10  # no duplicate (task_id, harness) keys
+
+
+def test_store_upsert_replaces_stale_subset(runner):
+    """fix-store-appends-duplicate-profiles: a later run with a different
+    --harnesses subset must not leave stale profiles from the prior run mixed
+    in as duplicates. Upsert keeps the latest measurement per (task_id,
+    harness); re-measuring the same (task_id, harness) replaces the old row in
+    place rather than appending a second copy."""
+    runner.run_benchmark(harnesses=DEFAULT_HARNESSES)  # 10 rows: native + openai
+    first_openai = {
+        p.task_id: p.multiplier_vs_baseline
+        for p in runner.load_profiles()
+        if p.harness == "openai-shape"
+    }
+    # Second run: only openai-shape — its rows are refreshed in place; native
+    # rows persist. No duplicate (task_id, harness) keys.
+    runner.run_benchmark(harnesses=("openai-shape",))
+    loaded = runner.load_profiles()
+    keys = {(p.task_id, p.harness) for p in loaded}
+    assert len(loaded) == 10  # native retained + openai-shape re-measured, NOT 15
+    assert len(keys) == 10
+    # openai-shape rows still hold the same deterministic offline values
+    # (re-measure replaced the row, did not alter the value).
+    for p in loaded:
+        if p.harness == "openai-shape":
+            assert p.multiplier_vs_baseline == first_openai[p.task_id]

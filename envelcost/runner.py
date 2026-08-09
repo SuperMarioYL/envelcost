@@ -165,11 +165,37 @@ class Runner:
 
     # --- persistence ---
     def _store(self, profiles: list[EnvelopeProfile]) -> None:
+        """Upsert profiles by (task_id, harness) — last measurement wins.
+
+        Previously this opened ``profiles.jsonl`` in append mode and never
+        de-duplicated, so every ``envelcost run`` piled a fresh duplicate set on
+        top of prior runs (duplicate rows in ``report``/``project``, unbounded
+        file growth, and stale profiles from an earlier ``--harnesses`` subset
+        lingering in the store alongside the latest). Now the store always
+        reflects the LATEST measurement per (task_id, harness): existing rows
+        whose key matches a newly-measured profile are replaced; the file is
+        rewritten atomically (tmp + ``os.replace``) so a crash never leaves a
+        partial store. The online path calls this same method, so online
+        ``output_tokens`` no longer duplicate either.
+        """
         self.store_dir.mkdir(parents=True, exist_ok=True)
         out = self.store_dir / "profiles.jsonl"
-        with out.open("a", encoding="utf-8") as f:
-            for p in profiles:
-                f.write(json.dumps(p.to_dict(), ensure_ascii=False) + "\n")
+        # Load existing rows, then upsert by (task_id, harness) — last wins.
+        index: dict[tuple[str, str], dict] = {}
+        if out.exists():
+            for line in out.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                d = json.loads(line)
+                index[(d["task_id"], d["harness"])] = d
+        for p in profiles:
+            index[(p.task_id, p.harness)] = p.to_dict()
+        # Atomic rewrite so a mid-write crash never corrupts the store.
+        tmp = out.with_suffix(".jsonl.tmp")
+        with tmp.open("w", encoding="utf-8") as f:
+            for d in index.values():
+                f.write(json.dumps(d, ensure_ascii=False) + "\n")
+        os.replace(tmp, out)
 
     def load_profiles(self) -> list[EnvelopeProfile]:
         f = self.store_dir / "profiles.jsonl"
