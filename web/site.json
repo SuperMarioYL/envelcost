@@ -5,47 +5,47 @@
   "host": "envelcost.lei6393.com",
   "lang": { "primary": "zh", "toggle": true },
   "accent": ["#3a9b7a"],
-  "content_version": "v0.2.0",
+  "content_version": "v0.3.0",
   "hero": {
     "eyebrow": {
-      "zh": "v0.2.0：--online 终于听 --harnesses/--task · 单 harness 跑完不再误判证伪",
-      "en": "v0.2.0: --online now heeds --harnesses/--task · single-harness run no longer falsely falsifies the thesis"
+      "zh": "v0.3.0：offline 也听 --task · store 不再重复计行",
+      "en": "v0.3.0: offline heeds --task too · store no longer duplicates rows"
     },
     "headline": {
-      "zh": "你只想验一个 harness 的真实用量\n--online 却把整张 5×3 网格都计了费",
-      "en": "You wanted one harness's real usage\n--online billed the whole 5×3 grid instead"
+      "zh": "你点名只测一道任务\noffline 却把五道全跑了",
+      "en": "You named one task to measure\noffline ran all five instead"
     },
     "sub": {
-      "zh": "v0.2.0 之前，--online 路径无视 --harnesses 和 --task——你点名一个 harness（5 次付费调用），它却把 5 任务 × 3 envelope 整张网格（15 次）都打到付费 DeepSeek API 上；--task 打错也无人校验，默默计了全网格的费。现在 --online 把过滤条件原样穿透进去，只为你选的 (harness, task) 对计费，--task 在任何付费调用之前就被解析校验——打错当场 BadParameter、一分不花。另一处：跨 envelope 的 kill floor 本就需要 ≥2 个 harness 才能评，旧逻辑却不查——单 harness（只跑 baseline）的运行会算出「0 个任务 >1.5x」并打印「核心论点证伪，halt」、退出 1，把完全合法的单 harness 试跑误判成证伪。现在 kill floor 受 floor_evaluable 门控：不足 2 个 harness 时跳过（held，不触发），并打一条清楚的「跨方差评估 harness 不足（跑了 N，需 ≥2）；跳过 kill gate」提示，退出干净。",
-      "en": "Before v0.2.0 the --online path ignored --harnesses and --task — you named one harness (5 paid calls) and it billed the whole 5-task × 3-envelope grid (15 calls) through the paid DeepSeek API; a typoed --task matched nothing and was never validated, so it silently billed the full grid. Now --online threads the filter through and bills only the (harness, task) pairs you selected; --task is resolved and validated (default swe-bench-mini → full set, a specific id → that one task) before any paid API call — a typo surfaces as BadParameter at $0. Separately, the cross-envelope kill floor needs ≥2 harnesses to evaluate by construction, yet the old logic didn't check — a single-harness (baseline-only) run trivially scored '0 tasks above 1.5x' and printed 'core thesis falsified, halt' and exited 1, misreading a perfectly valid single-harness onboarding run as a falsification. Now the floor is gated by floor_evaluable: with fewer than 2 harnesses it is skipped (held, not tripped), and a clear 'insufficient harnesses for cross-variance evaluation (ran N; need ≥2); skipping kill gate' note prints and the run exits clean."
+      "zh": "v0.3.0 之前，offline（默认）路径无视 --task——你 --task swe-bench-mini-001 只想测这一道，它却把 5 道 canonical 任务全跑了；--task 在 offline 模式下是个死选项（v0.2.0 只修了 online 那半）。现在 --task 在 online 和 offline 两条路径都一样穿透：点名哪道就只跑哪道。另一处：store 一直用追加模式写、读取不去重——每跑一遍 envelcost run，report/project 里就多出一整份重复行，文件也越积越大；现在 store 按 (task, harness) 去重替换、原子重写，report 永远只反映最新一次测算。",
+      "en": "Before v0.3.0 the offline (default) path ignored --task — you passed --task swe-bench-mini-001 to measure just that one, and it ran all 5 canonical tasks; --task was a dead option in offline mode (v0.2.0 only fixed the online half). Now --task threads through both the online and offline paths identically: name a task, only that one runs. Separately, the store always wrote in append mode and never de-duplicated on read — every envelcost run added a full duplicate set to report/project, and the file grew without bound; now the store upserts by (task, harness) with an atomic rewrite, so report always reflects the latest measurement."
     },
-    "command": "envelcost run --online --harnesses ClaudeCode --task swe-bench-mini-001",
+    "command": "envelcost run --task swe-bench-mini-001",
     "cta": { "zh": "开始测算", "en": "Start measuring" },
     "ctaGithub": { "zh": "在 GitHub 查看", "en": "View on GitHub" }
   },
   "advantages": [
     {
-      "title": { "zh": "--online 终于听你的 --harnesses/--task", "en": "--online finally heeds your --harnesses/--task" },
+      "title": { "zh": "offline 也听你的 --task", "en": "offline heeds your --task too" },
       "body": {
-        "zh": "你开 --online --harnesses ClaudeCode，本是想只把这一个 harness 的真实 DeepSeek 用量补齐——可旧版 --online 无视过滤条件，把 5 任务 × 3 envelope 整张网格全打到付费 API 上，你为 5 次调用付了 15 次的钱；--task 打错也匹配不到任何东西、却从不报错，默默把整张网格计了费。现在 --online 把 --harnesses 和 --task 原样穿透进 run_online，只为你选中的 (harness, task) 对走付费 API——默认 swe-bench-mini 仍是全集，swe-bench-mini-001 只跑那一道；--task 在任何付费调用前就被解析校验，打错当场 BadParameter，一分不花。",
-        "en": "You turn on --online --harnesses ClaudeCode to fill in that one harness's real DeepSeek usage — but the old --online ignored the filter and fired the whole 5-task × 3-envelope grid at the paid API, billing 15 calls for the 5 you asked for; a typoed --task matched nothing and never errored, silently billing the entire grid. Now --online threads --harnesses and --task straight into run_online and bills only the (harness, task) pairs you selected through the paid API — the default swe-bench-mini still resolves to the full set, swe-bench-mini-001 runs just that one task; --task is resolved and validated before any paid call, so a typo surfaces as BadParameter at $0."
+        "zh": "默认的 offline run 一直不把 --task 透进去——你 --task swe-bench-mini-001，本想只测这一道，可 offline 路径调 run_benchmark 时没带 task_ids，5 道 canonical 任务全跑了（--task 在 offline 是死选项，v0.2.0 只修了 online 那半）。现在 --task 在 online 和 offline 两条路径都一样穿透：默认 swe-bench-mini 仍是全集，具体 id 只跑那一道；打错 --task 在跑之前就 BadParameter，一分不花。",
+        "en": "The default offline run never threaded --task through — you passed --task swe-bench-mini-001 to measure just that one, but the offline path called run_benchmark with no task filter, so all 5 canonical tasks ran (--task was a dead option in offline mode; v0.2.0 only fixed the online half). Now --task threads through both the online and offline paths identically: the default swe-bench-mini still resolves to the full set, a specific id runs just that one task; a typoed --task surfaces as BadParameter before anything runs, at $0."
       },
       "chips": [
-        "› --harnesses × --task 穿透",
-        "› 只为选中的对计费",
+        "› offline × online 都听 --task",
+        "› 点名哪道只跑哪道",
         "› 打错 --task → $0"
       ]
     },
     {
-      "title": { "zh": "单 harness 跑完，不再误判证伪", "en": "A single-harness run no longer falsifies the thesis" },
+      "title": { "zh": "store 不再重复计行", "en": "store no longer duplicates rows" },
       "body": {
-        "zh": "kill floor（mvp_plan §8 #1）评的是跨 envelope 方差——它构造上就需要 ≥2 个 harness 才有意义。可旧逻辑不查 harness 数：只跑 baseline 一个 harness 时，自然算出「0 个任务 >1.5x」，于是打印「核心论点证伪，halt」并退出 1——把完全合法的单 harness 试跑（你边接 harness 边分批测）误判成证伪，直接挡住正常用法。现在 kill floor 受 floor_evaluable 门控：不足 2 个 harness 时跳过（held，不触发），并打一条「跨方差评估 harness 不足（跑了 N，需 ≥2）；跳过 kill gate」的清楚提示，退出干净。论文不再被单 harness 运行假性证伪。",
-        "en": "The kill floor (mvp_plan §8 #1) evaluates CROSS-envelope variance — by construction it needs ≥2 harnesses to mean anything. The old logic never checked the count: a baseline-only single-harness run trivially scored '0 tasks above 1.5x', so it printed 'core thesis falsified, halt' and exited 1 — misreading a perfectly valid single-harness onboarding run (you onboard harnesses one at a time) as a falsification, blocking normal usage. Now the floor is gated by floor_evaluable: with fewer than 2 harnesses it is skipped (held, not tripped), and a clear 'insufficient harnesses for cross-variance evaluation (ran N; need ≥2); skipping kill gate' note prints and the run exits clean. The thesis is no longer falsely falsified by a single-harness run."
+        "zh": "store 一直是追加写、读取不去重——每跑一遍 envelcost run，profiles.jsonl 就多出一整份重复测量，report 的表和 JSON 里出现 N 份一模一样的行，projector 读到的也是重复行；换个 --harnesses 子集再跑，旧子集的行还混在新行里。现在 store 按 (task, harness) 去重替换、原子重写：重复 run 只刷新、不堆叠，report 永远只反映最新一次测算，文件也不再无限增长。",
+        "en": "The store always wrote in append mode and never de-duplicated on read — every envelcost run added a full duplicate measurement set to profiles.jsonl, so the report table and JSON showed N identical rows and the projector read duplicated rows; re-running with a different --harnesses subset left the old subset's rows mixed in with the new. Now the store upserts by (task, harness) with an atomic rewrite: a repeated run refreshes in place instead of stacking, report always reflects the latest measurement, and the file no longer grows without bound."
       },
       "chips": [
-        "› floor_evaluable 门控",
-        "› <2 harness → 跳过 kill gate",
-        "› 不再假性证伪"
+        "› (task, harness) 去重替换",
+        "› 重复 run 只刷新",
+        "› report 反映最新测算"
       ]
     },
     {
@@ -62,8 +62,8 @@
     {
       "title": { "zh": "离线 · 可复现 · 数据不出境", "en": "Offline, reproducible, data stays on-prem" },
       "body": {
-        "zh": "核心测算不联网、不要 API key——按实际请求文本离线 tokenize 算出每个 harness 多烧的 token，谁都能复跑出同一张表。可选的 --online 模式（v0.2.0 起过滤条件被正确尊重）用真实 DeepSeek 用量把输出 token 填齐，只为你点名的 (harness, task) 对付费。开源 MIT，自托管免费。",
-        "en": "The core run needs no network and no API key — it tokenizes the actual request text offline to work out the extra tokens each harness burns, so anyone can reproduce the same table. The optional --online mode (filter correctly respected as of v0.2.0) fills in real DeepSeek output-token usage, billing only the (harness, task) pairs you named. Open source under MIT, free to self-host."
+        "zh": "核心测算不联网、不要 API key——按实际请求文本离线 tokenize 算出每个 harness 多烧的 token，谁都能复跑出同一张表。可选的 --online 模式用真实 DeepSeek 用量把输出 token 填齐，只为你点名的 (harness, task) 对付费。开源 MIT，自托管免费。",
+        "en": "The core run needs no network and no API key — it tokenizes the actual request text offline to work out the extra tokens each harness burns, so anyone can reproduce the same table. The optional --online mode fills in real DeepSeek output-token usage, billing only the (harness, task) pairs you named. Open source under MIT, free to self-host."
       },
       "chips": [
         "› 无联网 · 无 API key",
@@ -73,12 +73,12 @@
   ],
   "scene": {
     "kind": "hub-nodes",
-    "nodes": ["--online ignored --harnesses", "--task typo billed silently", "Single-harness falsified thesis", "Kill floor fired on baseline-only"]
+    "nodes": ["deepseek-native", "openai-shape", "claude-code-cliproxy"]
   },
   "cta": {
     "headline": {
-      "zh": "把 --online 的计费，钉在你点名的那几个 harness 上",
-      "en": "Pin --online's billing to the harnesses you actually named"
+      "zh": "把跨 harness 的 token 成本差距，算成信创 GPU 集群的容量数字",
+      "en": "Turn cross-harness token-cost gaps into capacity numbers for on-prem GPU clusters"
     },
     "sub": {
       "zh": "开源、MIT、自托管免费。容量测算这一核心动作，永不设墙。",
@@ -94,15 +94,27 @@
   },
   "changelog": [
     {
+      "version": "v0.3.0",
+      "date": "2026-08-09",
+      "zh": [
+        "offline（默认）run 现在尊重 --task——过滤条件透进 run_benchmark，点名哪道任务就只跑哪道；之前 offline 路径不带 task_ids，--task 在 offline 是死选项（v0.2.0 只修了 online 那半）。",
+        "store 不再追加重复行——改为按 (task, harness) 去重替换 + 原子重写，重复 envelcost run 只刷新不堆叠，report/project 永远只反映最新一次测算，文件也不再无限增长（v0.2.0 延期的中置信度 bug，现高置信度修复）。"
+      ],
+      "en": [
+        "The offline (default) run now respects --task — the filter threads into run_benchmark, so naming a task runs only that one; previously the offline path passed no task_ids, making --task a dead option in offline mode (v0.2.0 only fixed the online half).",
+        "The store no longer appends duplicate rows — it now upserts by (task, harness) with an atomic rewrite, so a repeated envelcost run refreshes in place instead of stacking, and report/project always reflect the latest measurement with no unbounded file growth (the medium-confidence bug deferred in v0.2.0, now fixed at high confidence)."
+      ]
+    },
+    {
       "version": "v0.2.0",
       "date": "2026-08-04",
       "zh": [
-        "--online 现在尊重 --harnesses 和 --task——过滤条件穿透进 run_online，只为你选中的 (harness, task) 对走付费 DeepSeek API，不再把整张 5 任务 × 3 envelope 网格计费；--task 在任何付费调用前就被解析校验（默认 swe-bench-mini 仍是全集，具体 id 只跑那一道），打错当场 BadParameter、一分不花。",
-        "跨 envelope 的 kill floor 不再被单 harness 运行假性证伪——新增 floor_evaluable 门控：不足 2 个 harness 时跳过 kill gate（held，不触发），并打一条「跨方差评估 harness 不足（跑了 N，需 ≥2）；跳过 kill gate」的清楚提示、退出干净，而非打印「核心论点证伪，halt」并退出 1。"
+        "--online 现在尊重 --harnesses 和 --task——过滤条件穿透进 run_online，只为你选中的 (harness, task) 对走付费 DeepSeek API，不再把整张 5 任务 × 3 envelope 网格计费；--task 在任何付费调用前就被解析校验，打错当场 BadParameter、一分不花。",
+        "跨 envelope 的 kill floor 不再被单 harness 运行假性证伪——新增 floor_evaluable 门控：不足 2 个 harness 时跳过 kill gate，退出干净。"
       ],
       "en": [
-        "--online now respects --harnesses and --task — the filter threads into run_online, billing only the (harness, task) pairs you selected through the paid DeepSeek API instead of the full 5-task × 3-envelope grid; --task is resolved and validated before any paid call (the default swe-bench-mini still resolves to the full set, a specific id runs just that one task), so a typo surfaces as BadParameter at $0.",
-        "The cross-envelope kill floor is no longer falsely falsified by a single-harness run — a new floor_evaluable gate skips the kill floor (held, not tripped) when fewer than 2 harnesses ran, printing a clear 'insufficient harnesses for cross-variance evaluation (ran N; need ≥2); skipping kill gate' note and exiting clean, instead of printing 'core thesis falsified, halt' and exiting 1."
+        "--online now respects --harnesses and --task — the filter threads into run_online, billing only the (harness, task) pairs you selected through the paid DeepSeek API instead of the full 5-task × 3-envelope grid; --task is resolved and validated before any paid call, so a typo surfaces as BadParameter at $0.",
+        "The cross-envelope kill floor is no longer falsely falsified by a single-harness run — a new floor_evaluable gate skips the kill floor when fewer than 2 harnesses ran, exiting clean."
       ]
     }
   ]
