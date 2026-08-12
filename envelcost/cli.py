@@ -77,9 +77,26 @@ def _resolve_task_ids(all_ids: list[str], task: str) -> list[str]:
     parts = [p.strip() for p in task.split(",") if p.strip()]
     selected: list[str] = []
     for p in parts:
+        # Per-part match tracking: a comma-list part that matches NO task id
+        # (a typo, or a too-short second id like `swe-bench-mini-001,002`) must
+        # surface as BadParameter before any measurement or paid API call —
+        # not be silently truncated to the subset that did match
+        # (fix-task-resolver-silently-drops-nonmatching-list-parts). The old
+        # aggregate-only `if not selected` guard fired only when NO part
+        # matched anything, so `--task swe-bench-mini-001,foo` quietly ran a
+        # one-task subset and --online billed an incomplete grid. The hit flag
+        # is set on the id match independent of the dedup guard, so a part
+        # that only re-matches an already-selected id still counts as matched.
+        matched_this_part = False
         for tid in all_ids:
-            if (tid == p or tid.startswith(p)) and tid not in selected:
-                selected.append(tid)
+            if tid == p or tid.startswith(p):
+                matched_this_part = True
+                if tid not in selected:
+                    selected.append(tid)
+        if not matched_this_part:
+            raise typer.BadParameter(
+                f"no tasks match --task part '{p}'. available: {', '.join(all_ids)}"
+            )
     if not selected:
         raise typer.BadParameter(
             f"no tasks match --task '{task}'. available: {', '.join(all_ids)}"

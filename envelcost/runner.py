@@ -134,14 +134,23 @@ class Runner:
         per_task: dict[str, dict[str, float]] = {}
         for p in profiles:
             per_task.setdefault(p.task_id, {})[p.harness] = p.multiplier_vs_baseline
-        # ratio of max/min harness multiplier per task (vs the deepseek-native
-        # baseline=1.0x, so the max multiplier IS the cross-harness ratio).
+        # True cross-harness spread per task = max/min multiplier. min > 0
+        # always (every multiplier >= 1.0). When the deepseek-native baseline
+        # (1.0x) is in the measured set, min=1.0 and the spread collapses to
+        # max — the old `peak = max(mults.values())` shorthand, which is why
+        # the gate looked healthy under the default 2-harness run. But a valid
+        # 2-harness run that EXCLUDES the baseline (e.g. openai-shape +
+        # claude-code-cliproxy, both ~3.2-3.3x) has a true spread of ~1.04x —
+        # far below the 1.5x kill floor — which the max-only check misread as
+        # a held gate (fix-kill-gate-holds-when-baseline-absent). Measuring the
+        # real spread makes the §8 kill #1 gate correct regardless of whether
+        # the baseline harness was measured.
         above_gate = above_floor = 0
         for tid, mults in per_task.items():
-            peak = max(mults.values())
-            if peak >= VARIANCE_GATE_MULTIPLIER:
+            spread = max(mults.values()) / min(mults.values())
+            if spread >= VARIANCE_GATE_MULTIPLIER:
                 above_gate += 1
-            if peak >= VARIANCE_FLOOR:
+            if spread >= VARIANCE_FLOOR:
                 above_floor += 1
         n = len(per_task)
         # mvp_plan §8 kill #1 is about CROSS-envelope variance: a single-harness
