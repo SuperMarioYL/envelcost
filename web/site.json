@@ -3,9 +3,14 @@
   "name": "envelcost",
   "github": "https://github.com/SuperMarioYL/envelcost",
   "host": "envelcost.lei6393.com",
-  "lang": { "primary": "zh", "toggle": true },
-  "accent": ["#3a9b7a"],
-  "content_version": "v0.3.0",
+  "lang": {
+    "primary": "zh",
+    "toggle": true
+  },
+  "accent": [
+    "#3a9b7a"
+  ],
+  "content_version": "v0.4.0",
   "hero": {
     "eyebrow": {
       "zh": "v0.3.0：offline 也听 --task · store 不再重复计行",
@@ -20,12 +25,21 @@
       "en": "Before v0.3.0 the offline (default) path ignored --task — you passed --task swe-bench-mini-001 to measure just that one, and it ran all 5 canonical tasks; --task was a dead option in offline mode (v0.2.0 only fixed the online half). Now --task threads through both the online and offline paths identically: name a task, only that one runs. Separately, the store always wrote in append mode and never de-duplicated on read — every envelcost run added a full duplicate set to report/project, and the file grew without bound; now the store upserts by (task, harness) with an atomic rewrite, so report always reflects the latest measurement."
     },
     "command": "envelcost run --task swe-bench-mini-001",
-    "cta": { "zh": "开始测算", "en": "Start measuring" },
-    "ctaGithub": { "zh": "在 GitHub 查看", "en": "View on GitHub" }
+    "cta": {
+      "zh": "开始测算",
+      "en": "Start measuring"
+    },
+    "ctaGithub": {
+      "zh": "在 GitHub 查看",
+      "en": "View on GitHub"
+    }
   },
   "advantages": [
     {
-      "title": { "zh": "offline 也听你的 --task", "en": "offline heeds your --task too" },
+      "title": {
+        "zh": "offline 也听你的 --task",
+        "en": "offline heeds your --task too"
+      },
       "body": {
         "zh": "默认的 offline run 一直不把 --task 透进去——你 --task swe-bench-mini-001，本想只测这一道，可 offline 路径调 run_benchmark 时没带 task_ids，5 道 canonical 任务全跑了（--task 在 offline 是死选项，v0.2.0 只修了 online 那半）。现在 --task 在 online 和 offline 两条路径都一样穿透：默认 swe-bench-mini 仍是全集，具体 id 只跑那一道；打错 --task 在跑之前就 BadParameter，一分不花。",
         "en": "The default offline run never threaded --task through — you passed --task swe-bench-mini-001 to measure just that one, but the offline path called run_benchmark with no task filter, so all 5 canonical tasks ran (--task was a dead option in offline mode; v0.2.0 only fixed the online half). Now --task threads through both the online and offline paths identically: the default swe-bench-mini still resolves to the full set, a specific id runs just that one task; a typoed --task surfaces as BadParameter before anything runs, at $0."
@@ -37,7 +51,10 @@
       ]
     },
     {
-      "title": { "zh": "store 不再重复计行", "en": "store no longer duplicates rows" },
+      "title": {
+        "zh": "store 不再重复计行",
+        "en": "store no longer duplicates rows"
+      },
       "body": {
         "zh": "store 一直是追加写、读取不去重——每跑一遍 envelcost run，profiles.jsonl 就多出一整份重复测量，report 的表和 JSON 里出现 N 份一模一样的行，projector 读到的也是重复行；换个 --harnesses 子集再跑，旧子集的行还混在新行里。现在 store 按 (task, harness) 去重替换、原子重写：重复 run 只刷新、不堆叠，report 永远只反映最新一次测算，文件也不再无限增长。",
         "en": "The store always wrote in append mode and never de-duplicated on read — every envelcost run added a full duplicate measurement set to profiles.jsonl, so the report table and JSON showed N identical rows and the projector read duplicated rows; re-running with a different --harnesses subset left the old subset's rows mixed in with the new. Now the store upserts by (task, harness) with an atomic rewrite: a repeated run refreshes in place instead of stacking, report always reflects the latest measurement, and the file no longer grows without bound."
@@ -49,7 +66,10 @@
       ]
     },
     {
-      "title": { "zh": "投影到你真实的 GPU 座位", "en": "Project it onto your real GPU seats" },
+      "title": {
+        "zh": "投影到你真实的 GPU 座位",
+        "en": "Project it onto your real GPU seats"
+      },
       "body": {
         "zh": "给定你的 GPU 数和并发座位数，按你测出来的跨 harness 差距，告诉你哪个 harness 撑得住、哪个撑不住、每座多少钱、整柜 capex 多少。换一台机器、换个座位数，重算只需一条命令——envelcost project --gpus 8xH100 --seats 50。",
         "en": "Give it your GPU count and concurrent seat target, and from the cross-harness gap you measured it tells you which harness fits, which doesn't, the cost per seat, and the rack's total capex. Swap a GPU or a seat count, re-run one command — envelcost project --gpus 8xH100 --seats 50."
@@ -60,7 +80,10 @@
       ]
     },
     {
-      "title": { "zh": "离线 · 可复现 · 数据不出境", "en": "Offline, reproducible, data stays on-prem" },
+      "title": {
+        "zh": "离线 · 可复现 · 数据不出境",
+        "en": "Offline, reproducible, data stays on-prem"
+      },
       "body": {
         "zh": "核心测算不联网、不要 API key——按实际请求文本离线 tokenize 算出每个 harness 多烧的 token，谁都能复跑出同一张表。可选的 --online 模式用真实 DeepSeek 用量把输出 token 填齐，只为你点名的 (harness, task) 对付费。开源 MIT，自托管免费。",
         "en": "The core run needs no network and no API key — it tokenizes the actual request text offline to work out the extra tokens each harness burns, so anyone can reproduce the same table. The optional --online mode fills in real DeepSeek output-token usage, billing only the (harness, task) pairs you named. Open source under MIT, free to self-host."
@@ -73,7 +96,11 @@
   ],
   "scene": {
     "kind": "hub-nodes",
-    "nodes": ["deepseek-native", "openai-shape", "claude-code-cliproxy"]
+    "nodes": [
+      "deepseek-native",
+      "openai-shape",
+      "claude-code-cliproxy"
+    ]
   },
   "cta": {
     "headline": {
@@ -84,7 +111,10 @@
       "zh": "开源、MIT、自托管免费。容量测算这一核心动作，永不设墙。",
       "en": "Open source, MIT, free to self-host. The core act of sizing your capacity is never gated."
     },
-    "button": { "zh": "在 GitHub 上开始", "en": "Get started on GitHub" }
+    "button": {
+      "zh": "在 GitHub 上开始",
+      "en": "Get started on GitHub"
+    }
   },
   "footer": {
     "tag": {
@@ -93,6 +123,11 @@
     }
   },
   "changelog": [
+    {
+      "version": "v0.4.0",
+      "zh": "m1 方差判定门现在测量真实的跨测试集离散度（而非相对基线的最大值），排除基线的双测试集运行不再会静默放行。--task 逗号列表里匹配不到任何任务的部分现在会明确报错，而不再悄悄只跑子集。",
+      "en": "The m1 variance kill gate now measures true cross-harness spread (not max-vs-baseline), so a 2-harness run excluding the baseline can no longer silently hold. A --task comma-list part matching nothing now raises a clear error instead of quietly running a subset."
+    },
     {
       "version": "v0.3.0",
       "date": "2026-08-09",
@@ -117,5 +152,6 @@
         "The cross-envelope kill floor is no longer falsely falsified by a single-harness run — a new floor_evaluable gate skips the kill floor when fewer than 2 harnesses ran, exiting clean."
       ]
     }
-  ]
+  ],
+  "generated_at": "2026-08-12T19:47:05Z"
 }
