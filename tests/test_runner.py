@@ -164,3 +164,37 @@ def test_store_upsert_replaces_stale_subset(runner):
     for p in loaded:
         if p.harness == "openai-shape":
             assert p.multiplier_vs_baseline == first_openai[p.task_id]
+
+
+def test_two_harness_non_baseline_run_breaks_kill_gate(runner):
+    """fix-kill-gate-holds-when-baseline-absent: a valid 2-harness run that
+    EXCLUDES the deepseek-native baseline (openai-shape + claude-code-cliproxy,
+    both ~3x but within ~1.07x of each other) must report the m1 kill floor
+    BROKEN — not HELD. The old gate used ``peak = max(mults.values())``, which is
+    only the true cross-harness ratio when the 1.0x baseline is present (then
+    min=1.0 and max/min == max). Without the baseline, peak ~3.0 >= 1.5 on every
+    task so the gate silently held and the build did not halt — directly
+    violating mvp_plan §8 kill #1 (the real spread ~1.07x < 1.5x on all 5 tasks
+    => thesis falsified). The ``spread = max/min`` fix makes the gate correct
+    regardless of whether the baseline harness was measured."""
+    harnesses = ("openai-shape", "claude-code-cliproxy")
+    profiles = runner.run_benchmark(harnesses=harnesses)
+    assert len(profiles) == 10  # 5 tasks x 2 harnesses
+    vr = runner.variance_report(profiles)
+    assert set(vr.harnesses) == set(harnesses)
+    assert "deepseek-native" not in vr.harnesses  # baseline deliberately absent
+    # 2 harnesses => the cross-variance gate IS evaluable (not skipped).
+    assert vr.floor_evaluable is True
+    # The true cross-harness spread (max/min) is ~1.07x on every task — far
+    # below the 1.5x kill floor, so §8 kill #1 trips. (These spread values are
+    # computed from the same mults dict pre- and post-fix; the bug was only in
+    # how the gate consumed them.)
+    for mults in vr.per_task_multiplier.values():
+        spread = max(mults.values()) / min(mults.values())
+        assert spread < VARIANCE_FLOOR
+    # below 1.5x on >=3/5 tasks => kill floor BROKEN, gate (>=3/5 above 2x) NOT
+    # passed. On the pre-fix max-only code above_floor=5 and floor_passed=True,
+    # so these three assertions are the load-bearing regression checks.
+    assert vr.tasks_above_floor < 3
+    assert vr.floor_passed is False  # gate BROKEN — halt
+    assert vr.gate_passed is False

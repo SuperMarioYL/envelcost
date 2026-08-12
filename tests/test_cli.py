@@ -1,4 +1,5 @@
-"""Regression tests for the v0.2.0 CLI fixes (amend-envelcost-v0.2.0).
+"""Regression tests for the v0.2.0 + v0.4.0 CLI fixes
+(amend-envelcost-v0.2.0, amend-envelcost-v0.4.0).
 
 Covers, end-to-end through the typer ``run`` command:
 
@@ -7,6 +8,10 @@ Covers, end-to-end through the typer ``run`` command:
   tasks), never the full 5-task x 3-envelope grid.
 * fix-single-harness-run-falsifies-thesis — a single-harness run must NOT print
   "core thesis falsified" / exit 1; it surfaces a "skipping kill gate" note.
+* fix-task-resolver-silently-drops-nonmatching-list-parts — a ``--task``
+  comma-list part that matches no task id must raise ``BadParameter`` before
+  any measurement or paid API call, instead of silently running the matching
+  subset.
 
 The DeepSeek API is replaced by a recording fake so no network call is made.
 """
@@ -210,3 +215,40 @@ def test_offline_bad_task_surfaces_before_run(cli_runner, tmp_path):
         ["run", "--task", "nope-not-a-task", "--store", str(store)],
     )
     assert result.exit_code == 2  # typer.BadParameter -> usage error
+
+
+def test_resolve_task_ids_raises_on_nonmatching_list_part():
+    """fix-task-resolver-silently-drops-nonmatching-list-parts: a comma-list
+    --task part that matches no task id must raise BadParameter — not be
+    silently dropped, running only the matching subset. ``--task
+    swe-bench-mini-001,002`` previously resolved to just
+    ``["swe-bench-mini-001"]`` because ``"002"`` is not a prefix of any shipped
+    id (they are ``swe-bench-mini-002``, …), and the aggregate-only ``if not
+    selected`` guard never fired (the first part DID match)."""
+    import typer
+
+    from envelcost.cli import _resolve_task_ids
+
+    all_ids = [f"swe-bench-mini-{i:03d}" for i in range(1, 6)]
+    # First part matches; "002" matches nothing (ids are swe-bench-mini-002, not 002).
+    with pytest.raises(typer.BadParameter) as exc_info:
+        _resolve_task_ids(all_ids, "swe-bench-mini-001,002")
+    assert "002" in str(exc_info.value)
+
+
+def test_offline_task_partial_match_surfaces_before_run(cli_runner, tmp_path):
+    """fix-task-resolver-silently-drops-nonmatching-list-parts: a comma-list
+    --task where one part matches and another matches nothing must raise
+    BadParameter (exit 2) before any measurement — not silently run only the
+    subset that matched. ``envelcost run --task swe-bench-mini-001,002``
+    previously measured only swe-bench-mini-001 and exited 0, so ``--online``
+    would bill an incomplete grid with no error."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app,
+        ["run", "--task", "swe-bench-mini-001,002", "--store", str(store)],
+    )
+    assert result.exit_code == 2  # typer.BadParameter -> usage error
+    assert "002" in result.output  # the offending part is named in the message
+    # The resolver raises before run_benchmark, so nothing was measured/stored.
+    assert not (store / "profiles.jsonl").exists()
