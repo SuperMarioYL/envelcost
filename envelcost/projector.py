@@ -115,11 +115,29 @@ class Projector:
         gpu, count = parse_gpu_spec(gpu_spec)
         raw_seats = count * gpu.seats_per_unit()
         total_capex = count * gpu.capex_per_unit_cny
-        harnesses = harnesses or tuple(sorted({p.harness for p in self.profiles}))
-        if not harnesses:
-            harnesses = ("deepseek-native", "openai-shape")
+        # Union the derived harness set with the two harnesses the `project`
+        # summary always names (deepseek-native, openai-shape) — the baseline
+        # 1.0x and the OpenAI-shape hook — so a PARTIAL single-harness store
+        # (e.g. `envelcost run --harnesses openai-shape`, the natural
+        # single-envelope flow the v0.2.0 --harnesses fix made first-class)
+        # still projects every summary-referenced harness at its measured
+        # multiplier (or the 1.0x parity default via multiplier_for if
+        # unmeasured). Without this union, a partial store left deepseek-native
+        # out of `rows`, fits_harness('deepseek-native') returned None, and the
+        # CLI printed a false 'deepseek-native does NOT fit' for the 1.0x
+        # baseline that always fits first (fix-project-summary-false-not-fit).
+        measured = tuple(sorted({p.harness for p in self.profiles}))
+        if harnesses:
+            harness_set = tuple(harnesses)
+        elif measured:
+            harness_set = tuple(
+                dict.fromkeys(measured + ("deepseek-native", "openai-shape"))
+            )
+        else:
+            # Empty store: parity fallback for the two summary-named harnesses.
+            harness_set = ("deepseek-native", "openai-shape")
         rows: list[HarnessCapacity] = []
-        for h in harnesses:
+        for h in harness_set:
             m = self.multiplier_for(h)
             effective = max(int(raw_seats / m), 1)
             fits = effective >= target_seats

@@ -14,6 +14,7 @@ Three commands map to the m1/m2/m3 milestones:
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -203,10 +204,26 @@ def project(
     store: Optional[Path] = typer.Option(
         None, "--store", help="Override the .envelcost store directory."
     ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help=(
+            "Print the projection as JSON to stdout (machine-readable) and skip "
+            "the text table + summary line. Mirrors the JSON output `report` "
+            "already ships; enables CI/scripting integration that gates a deploy "
+            "on whether deepseek-native fits the target seats."
+        ),
+    ),
 ) -> None:
     """Project per-harness seat-capacity + cost/seat onto a fixed GPU cluster."""
     projector = Projector.from_store(store) if store else Projector.from_store()
     projection = projector.project(gpus, seats)
+    if json_output:
+        # Machine-readable path: print Projection.to_dict() as JSON and skip the
+        # human text table + summary line. No new deps; to_dict() already
+        # exists and is tested for serializability.
+        typer.echo(json.dumps(projection.to_dict(), ensure_ascii=False))
+        return
     typer.echo(
         f"cluster: {projection.gpu_count}×{projection.gpu.label}  "
         f"target seats: {projection.target_seats}  "

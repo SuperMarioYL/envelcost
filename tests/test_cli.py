@@ -252,3 +252,116 @@ def test_offline_task_partial_match_surfaces_before_run(cli_runner, tmp_path):
     assert "002" in result.output  # the offending part is named in the message
     # The resolver raises before run_benchmark, so nothing was measured/stored.
     assert not (store / "profiles.jsonl").exists()
+
+
+def test_project_partial_store_does_not_falsify_baseline_fit(cli_runner, tmp_path):
+    """fix-project-summary-false-not-fit (end-to-end): the natural single-envelope
+    flow `envelcost run --harnesses openai-shape` (the v0.2.0 --harnesses fix
+    made it first-class) leaves the deepseek-native baseline unmeasured. The
+    `project` summary previously derived harnesses only from measured profiles,
+    so `fits_harness('deepseek-native')` returned None and the summary printed
+    'deepseek-native does NOT fit' — a FALSE verdict for the 1.0x baseline that
+    always fits first. It must now project the baseline at 1.0x parity and
+    report that it fits.
+    """
+    store = tmp_path / ".envelcost"
+    run_result = cli_runner.invoke(
+        app,
+        ["run", "--harnesses", "openai-shape", "--store", str(store)],
+    )
+    assert run_result.exit_code == 0, run_result.output
+    # Sanity: the store really is partial (only openai-shape was measured).
+    profiles = Runner(store_dir=store).load_profiles()
+    assert {p.harness for p in profiles} == {"openai-shape"}
+
+    result = cli_runner.invoke(
+        app,
+        ["project", "--gpus", "8xH100", "--seats", "50", "--store", str(store)],
+    )
+    assert result.exit_code == 0, result.output
+    # The false verdict must be gone — the baseline fits (1.0x parity).
+    assert "deepseek-native does NOT fit" not in result.output
+    assert "deepseek-native fits" in result.output
+
+
+def test_project_bad_gpu_count_surfaces_clean_error(cli_runner, tmp_path):
+    """fix-parse-gpu-spec-traceback-and-zero-count (end-to-end): a zero/typoed
+    --gpus count must exit non-zero with a clean human message — NOT a Python
+    traceback and NOT a silently bogus 0/negative-capex projection.
+    """
+    store = tmp_path / ".envelcost"
+    store.mkdir(parents=True, exist_ok=True)
+    for spec in ("0xH100", "-2xH100", "H100x8"):
+        result = cli_runner.invoke(
+            app,
+            ["project", "--gpus", spec, "--seats", "50", "--store", str(store)],
+        )
+        assert result.exit_code != 0, result.output
+        # A clean human message, not a raw traceback to stderr.
+        assert "Traceback" not in result.output
+
+
+def test_project_json_machine_readable(cli_runner, tmp_path):
+    """feat-project-json-output: `envelcost project --json` prints
+    Projection.to_dict() as JSON to stdout and skips the text table + summary
+    line. Mirrors the JSON output `report` already ships; closes the
+    inconsistency that project (the m3 commercial hook) printed only a text
+    table, blocking CI/scripting integration. No new deps — to_dict() already
+    exists and is tested for serializability (test_projection_to_dict_serializable).
+    """
+    store = tmp_path / ".envelcost"
+    # Populate a 2-harness store so the projection has the product-story shape:
+    # deepseek-native fits 50 seats, openai-shape (4x) does not.
+    run_result = cli_runner.invoke(
+        app,
+        [
+            "run",
+            "--harnesses", "deepseek-native,openai-shape",
+            "--store", str(store),
+        ],
+    )
+    assert run_result.exit_code == 0, run_result.output
+
+    result = cli_runner.invoke(
+        app,
+        ["project", "--json", "--gpus", "8xH100", "--seats", "50", "--store", str(store)],
+    )
+    assert result.exit_code == 0, result.output
+    import json as _json
+    parsed = _json.loads(result.output)
+    assert parsed["gpu_count"] == 8
+    assert parsed["target_seats"] == 50
+    rows = {r["harness"]: r for r in parsed["rows"]}
+    assert "deepseek-native" in rows
+    assert rows["deepseek-native"]["fits_target"] is True
+    assert "openai-shape" in rows
+    assert rows["openai-shape"]["fits_target"] is False
+    # --json path skips the human text table + summary line.
+    assert "does NOT fit" not in result.output
+    assert "total capex" not in result.output
+
+
+def test_project_default_path_unchanged_without_json(cli_runner, tmp_path):
+    """feat-project-json-output guard: the default (no --json) `project` path
+    is unchanged — it still prints the human text table + summary line, not
+    JSON.
+    """
+    store = tmp_path / ".envelcost"
+    run_result = cli_runner.invoke(
+        app,
+        ["run", "--harnesses", "deepseek-native,openai-shape", "--store", str(store)],
+    )
+    assert run_result.exit_code == 0, run_result.output
+
+    result = cli_runner.invoke(
+        app,
+        ["project", "--gpus", "8xH100", "--seats", "50", "--store", str(store)],
+    )
+    assert result.exit_code == 0, result.output
+    # The human summary line + table are still printed.
+    assert "total capex" in result.output
+    assert "deepseek-native fits" in result.output
+    # Not JSON.
+    import json as _json
+    with pytest.raises(_json.JSONDecodeError):
+        _json.loads(result.output)

@@ -10,7 +10,7 @@
   "accent": [
     "#3a9b7a"
   ],
-  "content_version": "v0.4.0",
+  "content_version": "v0.5.0",
   "hero": {
     "eyebrow": {
       "zh": "v0.3.0：offline 也听 --task · store 不再重复计行",
@@ -124,6 +124,12 @@
   },
   "changelog": [
     {
+      "version": "v0.5.0",
+      "date": "2026-08-16",
+      "zh": "v0.5.0 修复了 project 摘要：单 harness store 不再误报 'deepseek-native does NOT fit'（基线现在按 1.0x parity 投影）。--gpus 校验：打错的（H100x8）、0（0xH100）、负数（-2xH100）现在抛干净错误，不再是 traceback 或静默的 0/负 capex 投影。新增 envelcost project --json 机器可读容量投影，对齐 report 已有的 JSON 输出。",
+      "en": "v0.5.0 fixes the project summary so a single-harness store no longer falsely reports 'deepseek-native does NOT fit' (it now projects the baseline at 1.0x parity). --gpus validation: a typoed (H100x8), zero (0xH100), or negative (-2xH100) count now raises a clean error instead of a traceback or a silently bogus 0/negative-capex projection. Adds envelcost project --json for machine-readable capacity projection, mirroring the JSON output report already ships."
+    },
+    {
       "version": "v0.4.0",
       "zh": "m1 方差判定门现在测量真实的跨测试集离散度（而非相对基线的最大值），排除基线的双测试集运行不再会静默放行。--task 逗号列表里匹配不到任何任务的部分现在会明确报错，而不再悄悄只跑子集。",
       "en": "The m1 variance kill gate now measures true cross-harness spread (not max-vs-baseline), so a 2-harness run excluding the baseline can no longer silently hold. A --task comma-list part matching nothing now raises a clear error instead of quietly running a subset."
@@ -153,5 +159,5 @@
       ]
     }
   ],
-  "generated_at": "2026-08-12T19:47:05Z"
+  "generated_at": "2026-08-16T12:34:48Z"
 }

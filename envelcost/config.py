@@ -125,12 +125,31 @@ def resolve_gpu(name: str) -> GPU:
 
 
 def parse_gpu_spec(spec: str) -> tuple[GPU, int]:
-    """Parse an ``"8xH100"`` / ``"4×H200"`` spec into (GPU, count)."""
+    """Parse an ``"8xH100"`` / ``"4×H200"`` spec into (GPU, count).
+
+    Validates the count so a typoed (``H100x8``), zero (``0xH100``), or
+    negative (``-2xH100``) spec raises the same friendly ``ValueError`` the
+    no-``x`` path emits — not a raw ``int()`` traceback, and not a silently
+    bogus 0/negative-capex projection. ``project``/``run`` need no change.
+    """
     spec = spec.strip().replace("×", "x").replace(" ", "")
     if "x" not in spec:
         raise ValueError(
             f"bad gpu spec '{spec}'. expected e.g. '8xH100' or '4xH200'"
         )
     count_str, _, name = spec.partition("x")
-    count = int(count_str)
+    try:
+        count = int(count_str)
+    except ValueError:
+        # A reversed/typoed spec like 'H100x8' or 'axH100' previously let
+        # int('H100') raise a raw traceback instead of the friendly message.
+        raise ValueError(
+            f"bad gpu spec '{spec}'. expected e.g. '8xH100' or '4xH200'"
+        ) from None
+    if count < 1:
+        # A 0/negative count previously projected a bogus 0/negative-capex
+        # cluster (1 effective seat, ¥0 or ¥-negative capex) with no error.
+        raise ValueError(
+            f"gpu count must be >= 1, got {count} ('{spec}')"
+        )
     return resolve_gpu(name), count
