@@ -266,7 +266,33 @@ class Runner:
                             json=body,
                         )
                         r.raise_for_status()
-                        usage = r.json().get("usage", {})
+                        usage = r.json().get("usage")
+                        # fix-online-usage-shape-silent-zero: the module
+                        # docstring promises "a clear warning if the response
+                        # shape differs", but the old
+                        # `r.json().get("usage", {})` /
+                        # `int(usage.get("completion_tokens", 0))` performed
+                        # NO shape check — any 200 response whose `usage` block
+                        # was missing or used a differently-keyed field (e.g.
+                        # `output_tokens` / `generated_tokens`) silently stored
+                        # `output_tokens=0` with no warning, so the online run
+                        # looked successful but the output-token data was
+                        # silently wrong. Verify the expected shape is present;
+                        # on mismatch emit a VISIBLE warning and treat
+                        # output_tokens as unknown (0 + warning, NOT a silent
+                        # zero) — fall back to the offline measurement so the
+                        # profile is still complete.
+                        if not isinstance(usage, dict) or "completion_tokens" not in usage:
+                            import warnings
+                            warnings.warn(
+                                f"online usage block for {task.task_id}/{hname} "
+                                f"has a non-standard shape (expected "
+                                f"usage.completion_tokens; got usage={usage!r}); "
+                                f"output_tokens treated as unknown (0) — "
+                                f"falling back to offline measurement",
+                            )
+                            profiles.append(self.run_task(task.task_id, hname))
+                            continue
                         out_tok = int(usage.get("completion_tokens", 0))
                         # online input may differ from offline envelope count if
                         # the provider re-tokenizes; keep the offline count as

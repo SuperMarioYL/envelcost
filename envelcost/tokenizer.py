@@ -34,6 +34,23 @@ TokenizerName = Literal["openai", "deepseek"]
 _OPENAI_CHARS_PER_TOKEN = 4.0
 _DEEPSEEK_CHARS_PER_TOKEN = 3.8
 
+# The DeepSeek coder tokenizer repo id + a PINNED known-good revision (commit).
+# fix-tokenizer-trust-remote-code-unpinned: the old call
+# `AutoTokenizer.from_pretrained("deepseek-ai/deepseek-coder-1.3b-instruct",
+# trust_remote_code=True)` fetched the LATEST `main` revision with no
+# `revision=` pin and executed custom `tokenization_*.py`/`modeling_*.py` files
+# shipped in that repo — so a compromised / MitM'd repo revision ran arbitrary
+# code on the user's machine at tokenizer-load time (RCE). Pinning a specific
+# commit freezes the loaded snapshot: a later malicious `main` revision cannot
+# silently swap in new code. `trust_remote_code=False` is set because the
+# 1.3b-instruct tokenizer ships a standard fast tokenizer that needs no custom
+# code — the deterministic `_approx_count` fallback already makes the real
+# tokenizer non-load-bearing for the m1 gate, so a failed/unsafe load must NOT
+# execute remote code; it falls back instead. If HuggingFace revises the repo,
+# bump this pin deliberately after reviewing the diff.
+_DEEPSEEK_TOKENIZER_REPO = "deepseek-ai/deepseek-coder-1.3b-instruct"
+_DEEPSEEK_TOKENIZER_REVISION = "e063262dac8366fc1f28a4da0ff3c50ea66259ca"
+
 
 def _approx_count(text: str, chars_per_token: float) -> int:
     """Deterministic char-ratio fallback (no external tokenizer needed)."""
@@ -78,8 +95,16 @@ class Tokenizer:
         try:
             from transformers import AutoTokenizer  # type: ignore
             # A small DeepSeek tokenizer id; if offline/unavailable, falls back.
+            # revision= pins a known-good commit and trust_remote_code=False
+            # refuses to execute any tokenization_*.py shipped in the repo —
+            # see _DEEPSEEK_TOKENIZER_REVISION (fix-tokenizer-trust-remote-code-
+            # unpinned). If the pinned snapshot can't be loaded safely (offline
+            # / HF down), the except below falls back to _approx_count so the
+            # m1 gate stays reproducible without attempting remote code.
             self._deepseek_enc = AutoTokenizer.from_pretrained(
-                "deepseek-ai/deepseek-coder-1.3b-instruct", trust_remote_code=True
+                _DEEPSEEK_TOKENIZER_REPO,
+                revision=_DEEPSEEK_TOKENIZER_REVISION,
+                trust_remote_code=False,
             )
             self._deepseek_ok = True
         except Exception:
