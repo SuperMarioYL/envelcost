@@ -195,8 +195,22 @@ class Runner:
             for line in out.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
-                d = json.loads(line)
-                index[(d["task_id"], d["harness"])] = d
+                try:
+                    d = json.loads(line)
+                    index[(d["task_id"], d["harness"])] = d
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+                    # fix-corrupt-store-line-bricks-all-commands: a legacy
+                    # pre-atomic-append partial write, a hand edit, or any
+                    # externally-corrupted row must not abort the whole load —
+                    # doing so would brick ``run``'s self-heal re-read on the
+                    # same corrupt line. Skip the bad row; the atomic rewrite
+                    # below drops it for good on the next write.
+                    import warnings
+                    warnings.warn(
+                        f"skipping corrupt profiles.jsonl line during store "
+                        f"re-read: {e!r}; line={line!r}"
+                    )
+                    continue
         for p in profiles:
             index[(p.task_id, p.harness)] = p.to_dict()
         # Atomic rewrite so a mid-write crash never corrupts the store.
@@ -215,9 +229,21 @@ class Runner:
         for line in f.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
-            d = json.loads(line)
-            d["measured_at"] = datetime.fromisoformat(d["measured_at"])
-            out.append(EnvelopeProfile(**d))
+            try:
+                d = json.loads(line)
+                d["measured_at"] = datetime.fromisoformat(d["measured_at"])
+                out.append(EnvelopeProfile(**d))
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+                # fix-corrupt-store-line-bricks-all-commands: a single malformed
+                # line (legacy partial write / hand edit / external corruption)
+                # must not abort the whole load and brick report/project. Skip
+                # the bad row; a subsequent ``envelcost run`` upserts over the
+                # gap and self-heals the store.
+                import warnings
+                warnings.warn(
+                    f"skipping corrupt profiles.jsonl line: {e!r}; line={line!r}"
+                )
+                continue
         return out
 
     # --- online (optional; schema_unverified) ---

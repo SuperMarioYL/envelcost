@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from envelcost.runner import (
@@ -392,3 +394,62 @@ def test_deepseek_tokenizer_falls_back_when_pinned_load_fails(monkeypatch):
     text = "hello world " * 10
     expected = max(int(round(len(text) / _DEEPSEEK_CHARS_PER_TOKEN)), 1)
     assert tok._count_deepseek(text) == expected
+
+
+# --- v0.7.0 grill bug-hunt fix (amend-envelcost-v0.7.0) ---
+# fix-corrupt-store-line-bricks-all-commands: a single malformed profiles.jsonl
+# line (legacy pre-atomic-append partial write / hand edit / external
+# corruption) must be skipped with a warning instead of aborting the whole load
+# and bricking report/project. Both store read loops are guarded.
+
+def test_load_profiles_skips_corrupt_store_line(runner):
+    """fix-corrupt-store-line-bricks-all-commands: ``load_profiles`` does an
+    unguarded ``json.loads(line)`` (plus ``datetime.fromisoformat`` +
+    ``EnvelopeProfile(**d)``) per line, so a single malformed row raised
+    JSONDecodeError/TypeError and aborted the whole load — bricking ``report``
+    and ``project``. The bad row is now skipped with a visible warning; the
+    good row survives. On the pre-fix code this raises instead of warning."""
+    prof = runner.run_task("swe-bench-mini-001", "deepseek-native")
+    runner.store_dir.mkdir(parents=True, exist_ok=True)
+    store = runner.store_dir / "profiles.jsonl"
+    good_line = json.dumps(prof.to_dict())
+    # Un-JSON-parseable: a partial write left by a killed pre-v0.3.0 append run.
+    corrupt_line = "{this is not valid json"
+    store.write_text(good_line + "\n" + corrupt_line + "\n", encoding="utf-8")
+
+    with pytest.warns(UserWarning, match="skipping corrupt profiles.jsonl line"):
+        loaded = runner.load_profiles()
+    # Only the good row survives — the corrupt row was dropped, not fatal.
+    assert len(loaded) == 1
+    assert loaded[0].task_id == prof.task_id
+    assert loaded[0].harness == prof.harness
+
+
+def test_store_reread_skips_corrupt_line_and_self_heals(runner):
+    """fix-corrupt-store-line-bricks-all-commands: ``_store`` re-reads the
+    existing ``profiles.jsonl`` before upserting (the self-heal path at
+    runner.py:194-199), so a corrupt line there crashed ``run`` on the SAME bad
+    row instead of overwriting it — the user had to manually delete the store.
+    The re-read now skips the corrupt line (with a warning) and the subsequent
+    atomic rewrite drops it, so a fresh ``envelcost run`` self-heals the store."""
+    prof = runner.run_task("swe-bench-mini-001", "deepseek-native")
+    runner.store_dir.mkdir(parents=True, exist_ok=True)
+    store = runner.store_dir / "profiles.jsonl"
+    good_line = json.dumps(prof.to_dict())
+    corrupt_line = "<<<corrupt-legacy-row>>>"
+    store.write_text(good_line + "\n" + corrupt_line + "\n", encoding="utf-8")
+
+    with pytest.warns(
+        UserWarning, match="skipping corrupt profiles.jsonl line during store"
+    ):
+        runner.run_benchmark(
+            harnesses=("deepseek-native",), task_ids=["swe-bench-mini-001"]
+        )
+    # The store self-healed: no corrupt line remains after the atomic rewrite.
+    lines = store.read_text(encoding="utf-8").splitlines()
+    assert corrupt_line not in lines
+    assert all(json.loads(line) for line in lines if line.strip())
+    loaded = runner.load_profiles()
+    assert len(loaded) == 1
+    assert loaded[0].task_id == "swe-bench-mini-001"
+    assert loaded[0].harness == "deepseek-native"

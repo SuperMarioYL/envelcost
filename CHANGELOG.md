@@ -4,6 +4,38 @@ All notable changes to **envelcost** are documented here. Versions follow the
 grill bug-hunt amendment cadence. Each entry lists the fix-ids from the
 amendment findings YAML.
 
+## [0.7.0] — 2026-08-23
+
+The v0.7.0 grill bug-hunt (amend-envelcost-v0.7.0). One HIGH-severity
+read-side robustness fix; no contract change on the standard happy path.
+
+### Fixed
+
+- **fix-corrupt-store-line-bricks-all-commands** (`envelcost/runner.py`): both
+  store read loops did an unguarded per-line `json.loads` — `_store`'s
+  re-read-before-upsert (the self-heal path) and `load_profiles`' parse
+  (`json.loads` + `datetime.fromisoformat` + `EnvelopeProfile(**d)`) — so a
+  single malformed line (a partial write left by a killed pre-v0.3.0
+  append-mode run, a hand-edited store, or any externally-corrupted row)
+  raised `JSONDecodeError`/`TypeError` and aborted the whole load. This bricked
+  every store-touching command: `report` and `project` (via `load_profiles`)
+  traceback, and `run` could not recover because `_store` itself re-read the
+  existing file before upserting, crashing on the same corrupt line instead of
+  overwriting it — the user had to manually delete `.envelcost/profiles.jsonl`.
+  The per-line parse is now wrapped in `try/except` that skips the bad row with
+  a visible `warnings.warn`; the existing atomic tmp+`os.replace` write path is
+  untouched, so a subsequent `envelcost run` upserts over the gap and self-heals
+  the store. This is a localized read-side robustness guard against
+  legacy/externally-corrupted stores, not a producer change.
+
+### Tests
+
+- Added `tests/test_runner.py` coverage: a store containing one good line
+  plus one un-JSON-parseable line is loaded by `load_profiles` without raising
+  (the good row survives, the bad row is skipped with a warning); a fresh
+  `run_benchmark` re-reads the corrupt store via `_store` without crashing and
+  the atomic rewrite self-heals it (no corrupt line remains afterward).
+
 ## [0.6.0] — 2026-08-19
 
 The v0.6.0 grill bug-hunt (amend-envelcost-v0.6.0). Two correctness/security
