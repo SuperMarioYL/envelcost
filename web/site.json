@@ -10,7 +10,7 @@
   "accent": [
     "#3a9b7a"
   ],
-  "content_version": "v0.5.0",
+  "content_version": "v0.7.0",
   "hero": {
     "eyebrow": {
       "zh": "v0.3.0：offline 也听 --task · store 不再重复计行",
@@ -124,6 +124,18 @@
   },
   "changelog": [
     {
+      "version": "v0.7.0",
+      "date": "2026-08-23",
+      "zh": "v0.7.0：store 的两处 json.loads 读取循环（_store 重读 + load_profiles）现在 try/except 跳过坏行并告警——profiles.jsonl 里一行损坏（遗留的非原子追加、手改、外部损坏）不再让 report/project 整个崩掉；下一次 run 的原子重写顺手自愈坏行。",
+      "en": "v0.7.0: both json.loads read loops in the store (_store re-read + load_profiles) now try/except-skip-and-warn bad lines — a single corrupt line in profiles.jsonl (legacy pre-atomic append, manual edit, external corruption) no longer bricks report/project; the next run's atomic rewrite self-heals the bad line."
+    },
+    {
+      "version": "v0.6.0",
+      "date": "2026-08-19",
+      "zh": "v0.6.0：online usage 的 shape 校验收紧（异常用量不再被静默算成零）；tokenizer 不再硬编码 trust_remote_code，移除未受信远程代码的信任面。",
+      "en": "v0.6.0: tightened the online usage shape check (an anomalous usage no longer silently zeroes); the tokenizer no longer hard-codes trust_remote_code, removing the untrusted-remote-code surface."
+    },
+    {
       "version": "v0.5.0",
       "date": "2026-08-16",
       "zh": "v0.5.0 修复了 project 摘要：单 harness store 不再误报 'deepseek-native does NOT fit'（基线现在按 1.0x parity 投影）。--gpus 校验：打错的（H100x8）、0（0xH100）、负数（-2xH100）现在抛干净错误，不再是 traceback 或静默的 0/负 capex 投影。新增 envelcost project --json 机器可读容量投影，对齐 report 已有的 JSON 输出。",
@@ -159,5 +171,5 @@
       ]
     }
   ],
-  "generated_at": "2026-08-16T12:34:48Z"
+  "generated_at": "2026-08-23T03:30:00Z"
 }
