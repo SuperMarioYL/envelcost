@@ -4,6 +4,57 @@ All notable changes to **envelcost** are documented here. Versions follow the
 grill bug-hunt amendment cadence. Each entry lists the fix-ids from the
 amendment findings YAML.
 
+## [0.8.0] — 2026-08-31
+
+The v0.8.0 grill bug-hunt (amend-envelcost-v0.8.0). Two honest version/report
+drift fixes; no behavior change to the core variance/runner logic (which the
+6 prior grill iterations pin with adversarial tests).
+
+### Fixed
+
+- **fix-package-version-constant-drift** (`envelcost/__init__.py`): the package
+  `__version__` constant was still `0.6.0` after the v0.7.0 ship — every other
+  version surface (VERSION, `pyproject.toml [project].version`, CHANGELOG) had
+  been bumped to 0.7.0, but `__init__.py` was missed. The CLI's `--version`
+  callback imports and echoes this constant
+  (`from . import __version__` / `typer.echo(__version__)`), so
+  `envelcost --version` printed `0.6.0` for the entire v0.7.0 line. The stale
+  value also leaked into the rendered demo asset: `docs/demo.tape` runs
+  `envelcost --version` as its first step, so `assets/demo.gif` showed `0.6.0`.
+  Now bumped to `0.8.0` and kept in lockstep with VERSION + pyproject; a
+  regression test asserts `envelcost.__version__` equals the VERSION file and
+  that the `--version` CLI flag echoes the same string, so a future bump cannot
+  silently desync again.
+- **fix-report-md-misleads-on-skipped-kill-gate** (`envelcost/report.py`): the
+  persisted `envelcost-report.md` variance-gate section printed
+  `gate passed: {{ variance.gate_passed }}` and
+  `kill floor held: {{ variance.floor_passed }}` but ignored
+  `variance.floor_evaluable` (which `VarianceReport.to_dict()` already emits).
+  So a single-harness (baseline-only) run — where `floor_evaluable=False` and
+  `floor_passed=True` ONLY because the gate is skipped — rendered the written
+  report as "kill floor held: True" / "gate passed: False", claiming the kill
+  floor HELD when it was actually unevaluable, and making "gate passed: False"
+  read like a done-bar failure rather than "cannot be evaluated with one
+  harness". The CLI stdout was already honest ("kill floor (1.5x) SKIPPED (<2
+  harnesses)"); the persisted report now mirrors it: the gate line says
+  "unevaluable (<2 harnesses measured)" / "passed" / "not yet", and the
+  kill-floor line says "skipped (<2 harnesses)" / "held" / "BROKEN — halt". No
+  data-model change — `to_dict()` already carried the flag; one localized
+  template edit.
+
+### Tests
+
+- Added `tests/test_runner.py` coverage: `envelcost.__version__` equals the
+  VERSION file string and the `pyproject.toml [project].version` field, and
+  the `envelcost --version` CLI flag echoes that same string — guarding against
+  a future version bump silently desyncing the package constant from VERSION /
+  pyproject (the v0.7.0 regression).
+- Added `tests/test_runner.py` coverage: a single-harness
+  (`--harnesses deepseek-native`) run's persisted `envelcost-report.md` says
+  the gate is "unevaluable" and the kill floor is "skipped" — NOT "held" — so
+  the written report is as honest as the CLI stdout; a 2-harness passing run
+  still says "held" / "passed".
+
 ## [0.7.0] — 2026-08-23
 
 The v0.7.0 grill bug-hunt (amend-envelcost-v0.7.0). One HIGH-severity

@@ -453,3 +453,37 @@ def test_store_reread_skips_corrupt_line_and_self_heals(runner):
     assert len(loaded) == 1
     assert loaded[0].task_id == "swe-bench-mini-001"
     assert loaded[0].harness == "deepseek-native"
+
+
+# --- v0.8.0 grill bug-hunt fixes (amend-envelcost-v0.8.0) ---
+# fix-package-version-constant-drift: the package __version__ constant must stay
+# in lockstep with VERSION + pyproject [project].version, or `envelcost --version`
+# (and the rendered demo gif) report a stale version.
+
+def test_version_constant_in_lockstep_with_version_file_and_pyproject():
+    """fix-package-version-constant-drift: envelcost.__version__ must equal the
+    VERSION file string and the pyproject.toml [project].version field. The
+    v0.7.0 ship bumped VERSION/pyproject/CHANGELOG to 0.7.0 but left
+    envelcost/__init__.py:__version__ at 0.6.0, so `envelcost --version` printed
+    0.6.0 for the whole v0.7.0 line (and assets/demo.gif showed 0.6.0 because
+    docs/demo.tape runs `envelcost --version` first). This pins the three
+    surfaces together so a future bump cannot silently desync the package
+    constant from VERSION / pyproject again."""
+    import re
+    import envelcost
+    from pathlib import Path
+
+    repo_root = Path(envelcost.__file__).resolve().parent.parent
+    version_file = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
+    pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
+    assert m is not None, "pyproject.toml [project].version not found"
+    pyproject_version = m.group(1)
+
+    assert envelcost.__version__ == version_file, (
+        f"__version__ ({envelcost.__version__}) != VERSION ({version_file})"
+    )
+    assert envelcost.__version__ == pyproject_version, (
+        f"__version__ ({envelcost.__version__}) != pyproject version "
+        f"({pyproject_version})"
+    )
