@@ -365,3 +365,72 @@ def test_project_default_path_unchanged_without_json(cli_runner, tmp_path):
     import json as _json
     with pytest.raises(_json.JSONDecodeError):
         _json.loads(result.output)
+
+
+# --- v0.8.0 grill bug-hunt fixes (amend-envelcost-v0.8.0) ---
+# fix-package-version-constant-drift + fix-report-md-misleads-on-skipped-kill-gate.
+
+def test_version_flag_echoes_shipped_version(cli_runner):
+    """fix-package-version-constant-drift: `envelcost --version` must echo the
+    shipped version (the VERSION file / pyproject [project].version), not a
+    stale package __version__ constant. The v0.7.0 ship left
+    envelcost/__init__.py:__version__ at 0.6.0 while VERSION/pyproject said
+    0.7.0, so --version printed 0.6.0 for the whole v0.7.0 line (and the demo
+    gif showed 0.6.0 because docs/demo.tape runs `envelcost --version` first).
+    The CLI imports and echoes envelcost.__version__ (cli.py:24,41)."""
+    import envelcost
+    from pathlib import Path
+
+    result = cli_runner.invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    # The flag must echo the package __version__ constant.
+    assert result.output.strip() == envelcost.__version__
+    # And that constant must match the VERSION file (the source of truth).
+    repo_root = Path(envelcost.__file__).resolve().parent.parent
+    version_file = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
+    assert result.output.strip() == version_file
+
+
+def test_report_md_single_harness_says_skipped_not_held(cli_runner, tmp_path):
+    """fix-report-md-misleads-on-skipped-kill-gate: a single-harness
+    (baseline-only) run's persisted envelcost-report.md must say the kill floor
+    is SKIPPED and the gate is unevaluable — NOT "kill floor held: True". The
+    CLI stdout was already honest ("kill floor (1.5x) SKIPPED (<2 harnesses)"),
+    but the persisted markdown report previously ignored variance.floor_evaluable
+    and rendered "kill floor held: True" / "gate passed: False", claiming the
+    gate HELD when it was actually unevaluable. The report must now mirror the
+    CLI's honesty (report.py _MD_TEMPLATE consumes floor_evaluable)."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app, ["run", "--harnesses", "deepseek-native", "--store", str(store)]
+    )
+    assert result.exit_code == 0, result.output
+    # CLI stdout was already honest before this fix.
+    assert "skipping kill gate" in result.output
+
+    md = (store / "envelcost-report.md").read_text(encoding="utf-8")
+    # The persisted report must now surface the skipped/unevaluable status.
+    assert "kill floor: skipped" in md, md
+    assert "gate: unevaluable" in md, md
+    # It must NOT claim the kill floor "held" for a single-harness run — the
+    # old template rendered "kill floor held: True" here.
+    assert "held" not in md, md
+
+
+def test_report_md_two_harness_passing_says_held(cli_runner, tmp_path):
+    """fix-report-md-misleads-on-skipped-kill-gate guard: a 2-harness PASSING
+    run (the default deepseek-native + openai-shape, kill floor genuinely held)
+    must still render 'held' / 'passed' in the persisted markdown report — the
+    honesty fix must not cry wolf on the evaluable happy path."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app,
+        ["run", "--harnesses", "deepseek-native,openai-shape", "--store", str(store)],
+    )
+    assert result.exit_code == 0, result.output
+    md = (store / "envelcost-report.md").read_text(encoding="utf-8")
+    assert "kill floor: held" in md, md
+    assert "gate: passed" in md, md
+    # A genuinely-held gate must not be mislabeled as skipped/unevaluable.
+    assert "skipped" not in md, md
+    assert "unevaluable" not in md, md

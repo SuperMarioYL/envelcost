@@ -57,8 +57,8 @@ tasks: {{ task_count }}
 
 - tasks above 2.0x (done bar): {{ variance.tasks_above_gate }} / {{ variance.task_count }}
 - tasks above 1.5x (kill floor): {{ variance.tasks_above_floor }} / {{ variance.task_count }}
-- gate passed: **{{ variance.gate_passed }}**
-- kill floor held: **{{ variance.floor_passed }}**
+- gate: {{ "unevaluable (<2 harnesses measured)" if not variance.floor_evaluable else ("passed" if variance.gate_passed else "not yet") }}
+- kill floor: {{ "skipped (<2 harnesses)" if not variance.floor_evaluable else ("held" if variance.floor_passed else "BROKEN — halt") }}
 """
 
 
