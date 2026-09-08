@@ -148,6 +148,10 @@
           "alt": {
             "en": "Follow the operation",
             "zh": "处理过程"
+          },
+          "mobile": {
+            "light": "/assets/presentation/process-mobile-light.svg",
+            "dark": "/assets/presentation/process-mobile-dark.svg"
           }
         }
       },
@@ -166,6 +170,10 @@
           "alt": {
             "en": "How envelcost works",
             "zh": "envelcost 的工作方式"
+          },
+          "mobile": {
+            "light": "/assets/presentation/architecture-mobile-light.svg",
+            "dark": "/assets/presentation/architecture-mobile-dark.svg"
           }
         }
       },
@@ -184,6 +192,10 @@
           "alt": {
             "en": "Connect the pieces",
             "zh": "输入与输出"
+          },
+          "mobile": {
+            "light": "/assets/presentation/integrations-mobile-light.svg",
+            "dark": "/assets/presentation/integrations-mobile-dark.svg"
           }
         }
       }
@@ -212,5 +224,60 @@
       }
     ]
   },
-  "content_version": "v0.8.0"
+  "content_version": "v0.8.0",
+  "changelog": [
+    {
+      "version": "v0.8.0",
+      "date": "2026-08-31",
+      "zh": "v0.8.0：envelcost --version 现在报对版本号（包 __version__ 常量此前卡在 0.6.0，与 VERSION/pyproject 不一致，演示 gif 也跟着错版）；envelcost-report.md 的方差判定门现在如实反映 floor_evaluable——单 harness 运行不再被写成 'kill floor held: True'，而是 'skipped (<2 harnesses)'，与 CLI stdout 一致，写出来的报告不再误导。",
+      "en": "v0.8.0: envelcost --version now reports the correct version (the package __version__ constant was stuck at 0.6.0, out of sync with VERSION/pyproject, so the demo gif showed the wrong version too); the envelcost-report.md variance gate now honestly reflects floor_evaluable — a single-harness run is no longer written as 'kill floor held: True' but as 'skipped (<2 harnesses)', matching the CLI stdout so the persisted report no longer misleads."
+    },
+    {
+      "version": "v0.7.0",
+      "date": "2026-08-23",
+      "zh": "v0.7.0：store 的两处 json.loads 读取循环（_store 重读 + load_profiles）现在 try/except 跳过坏行并告警——profiles.jsonl 里一行损坏（遗留的非原子追加、手改、外部损坏）不再让 report/project 整个崩掉；下一次 run 的原子重写顺手自愈坏行。",
+      "en": "v0.7.0: both json.loads read loops in the store (_store re-read + load_profiles) now try/except-skip-and-warn bad lines — a single corrupt line in profiles.jsonl (legacy pre-atomic append, manual edit, external corruption) no longer bricks report/project; the next run's atomic rewrite self-heals the bad line."
+    },
+    {
+      "version": "v0.6.0",
+      "date": "2026-08-19",
+      "zh": "v0.6.0：online usage 的 shape 校验收紧（异常用量不再被静默算成零）；tokenizer 不再硬编码 trust_remote_code，移除未受信远程代码的信任面。",
+      "en": "v0.6.0: tightened the online usage shape check (an anomalous usage no longer silently zeroes); the tokenizer no longer hard-codes trust_remote_code, removing the untrusted-remote-code surface."
+    },
+    {
+      "version": "v0.5.0",
+      "date": "2026-08-16",
+      "zh": "v0.5.0 修复了 project 摘要：单 harness store 不再误报 'deepseek-native does NOT fit'（基线现在按 1.0x parity 投影）。--gpus 校验：打错的（H100x8）、0（0xH100）、负数（-2xH100）现在抛干净错误，不再是 traceback 或静默的 0/负 capex 投影。新增 envelcost project --json 机器可读容量投影，对齐 report 已有的 JSON 输出。",
+      "en": "v0.5.0 fixes the project summary so a single-harness store no longer falsely reports 'deepseek-native does NOT fit' (it now projects the baseline at 1.0x parity). --gpus validation: a typoed (H100x8), zero (0xH100), or negative (-2xH100) count now raises a clean error instead of a traceback or a silently bogus 0/negative-capex projection. Adds envelcost project --json for machine-readable capacity projection, mirroring the JSON output report already ships."
+    },
+    {
+      "version": "v0.4.0",
+      "zh": "m1 方差判定门现在测量真实的跨测试集离散度（而非相对基线的最大值），排除基线的双测试集运行不再会静默放行。--task 逗号列表里匹配不到任何任务的部分现在会明确报错，而不再悄悄只跑子集。",
+      "en": "The m1 variance kill gate now measures true cross-harness spread (not max-vs-baseline), so a 2-harness run excluding the baseline can no longer silently hold. A --task comma-list part matching nothing now raises a clear error instead of quietly running a subset."
+    },
+    {
+      "version": "v0.3.0",
+      "date": "2026-08-09",
+      "zh": [
+        "offline（默认）run 现在尊重 --task——过滤条件透进 run_benchmark，点名哪道任务就只跑哪道；之前 offline 路径不带 task_ids，--task 在 offline 是死选项（v0.2.0 只修了 online 那半）。",
+        "store 不再追加重复行——改为按 (task, harness) 去重替换 + 原子重写，重复 envelcost run 只刷新不堆叠，report/project 永远只反映最新一次测算，文件也不再无限增长（v0.2.0 延期的中置信度 bug，现高置信度修复）。"
+      ],
+      "en": [
+        "The offline (default) run now respects --task — the filter threads into run_benchmark, so naming a task runs only that one; previously the offline path passed no task_ids, making --task a dead option in offline mode (v0.2.0 only fixed the online half).",
+        "The store no longer appends duplicate rows — it now upserts by (task, harness) with an atomic rewrite, so a repeated envelcost run refreshes in place instead of stacking, and report/project always reflect the latest measurement with no unbounded file growth (the medium-confidence bug deferred in v0.2.0, now fixed at high confidence)."
+      ]
+    },
+    {
+      "version": "v0.2.0",
+      "date": "2026-08-04",
+      "zh": [
+        "--online 现在尊重 --harnesses 和 --task——过滤条件穿透进 run_online，只为你选中的 (harness, task) 对走付费 DeepSeek API，不再把整张 5 任务 × 3 envelope 网格计费；--task 在任何付费调用前就被解析校验，打错当场 BadParameter、一分不花。",
+        "跨 envelope 的 kill floor 不再被单 harness 运行假性证伪——新增 floor_evaluable 门控：不足 2 个 harness 时跳过 kill gate，退出干净。"
+      ],
+      "en": [
+        "--online now respects --harnesses and --task — the filter threads into run_online, billing only the (harness, task) pairs you selected through the paid DeepSeek API instead of the full 5-task × 3-envelope grid; --task is resolved and validated before any paid call, so a typo surfaces as BadParameter at $0.",
+        "The cross-envelope kill floor is no longer falsely falsified by a single-harness run — a new floor_evaluable gate skips the kill floor when fewer than 2 harnesses ran, exiting clean."
+      ]
+    }
+  ]
 }
