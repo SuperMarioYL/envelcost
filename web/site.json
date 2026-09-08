@@ -211,5 +211,6 @@
         "code": "envelcost run\nenvelcost report\n# Scenario projection, not a load test:\nenvelcost project --gpus 8xH100 --seats 50"
       }
     ]
-  }
+  },
+  "content_version": "v0.8.0"
 }
