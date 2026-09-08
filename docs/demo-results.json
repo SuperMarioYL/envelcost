@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_revision": "781cbae889b8e11c0fbae37ef02363e0e2955b11",
+  "scope": "Serialize one explicit tool definition in two project representations and count both with the same available cl100k tokenizer. No real harness capture, model execution, GPU capacity or preserved tool-schema equivalence.",
+  "steps": [
+    {
+      "label": "Recorded run",
+      "body": "Serialize one explicit tool definition in two project representations and count both with the same available cl100k tokenizer. No real harness capture, model execution, GPU capacity or preserved tool-schema equivalence.",
+      "command": ".venv/bin/python examples/presentation-demo.py",
+      "output": "{\"representation\": \"compact\", \"text\": \"[tool:read] Read a file\\nargs: path\", \"tokens_same_cl100k\": 12}\n{\"representation\": \"json-schema\", \"text\": \"{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"read\\\",\\\"description\\\":\\\"Read a file\\\",\\\"parameters\\\":{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"path\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"path\\\"]}}}\", \"tokens_same_cl100k\": 37}\ncl100k available: True"
+    }
+  ]
+}

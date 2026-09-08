@@ -1,0 +1,82 @@
+{
+  "name": "envelcost",
+  "tagline": "Inspect the text overhead of tool envelopes.",
+  "architecture": {
+    "title": "How envelcost works",
+    "nodes": [
+      {
+        "title": "Tool definitions",
+        "detail": "envelcost/envelope.py"
+      },
+      {
+        "title": "Envelope templates",
+        "detail": "Configured serialization"
+      },
+      {
+        "title": "Tokenizer / profile",
+        "detail": "tokenizer.py; runner.py"
+      },
+      {
+        "title": "Scenario report",
+        "detail": "projector.py; report.py"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  "process": {
+    "title": "From input to a useful result",
+    "steps": [
+      {
+        "title": "Define tool",
+        "detail": "One path argument"
+      },
+      {
+        "title": "Serialize twice",
+        "detail": "Compact vs full schema"
+      },
+      {
+        "title": "Count same vocabulary",
+        "detail": "cl100k for both forms"
+      }
+    ],
+    "result": "The output shows both exact representations and their tokenizer counts; it makes no live harness performance claim."
+  },
+  "integrations": {
+    "title": "Supported input and output routes",
+    "items": [
+      {
+        "title": "Task YAML",
+        "detail": "Configured task inputs"
+      },
+      {
+        "title": "ToolDef",
+        "detail": "Compact and full-schema representations"
+      },
+      {
+        "title": "Tokenizers",
+        "detail": "cl100k and optional DeepSeek path"
+      },
+      {
+        "title": "Profile JSONL",
+        "detail": "Measured serialized-text counts"
+      },
+      {
+        "title": "Capacity model",
+        "detail": "Explicit scenario assumptions"
+      }
+    ]
+  }
+}

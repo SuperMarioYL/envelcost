@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "envelcost"
 version = "0.8.0"
-description = "Per-harness DeepSeek tool-call-envelope token-cost profiler for 信创 on-prem GPU capacity planning."
+description = "Compare serialized tool-envelope token estimates and project their ratios through an explicit capacity-planning model."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

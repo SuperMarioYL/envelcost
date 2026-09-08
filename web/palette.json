@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "b8e656-7de76a-f6f2ac-a6e0457c7f30",
+  "identity": "https://github.com/supermarioyl/envelcost",
+  "primary": "#b8e656",
+  "secondary": "#7de76a",
+  "highlight": "#f6f2ac",
+  "dark": {
+    "bg": "#080c0d",
+    "panel": "#111717",
+    "code": "#111713",
+    "ink": "#fdfcee",
+    "muted": "#a9b9a8",
+    "line": "#2f3c1d",
+    "primary": "#b8e656",
+    "secondary": "#7de76a",
+    "highlight": "#f6f2ac",
+    "accent": "#b8e656",
+    "buttonStart": "#667f30",
+    "buttonEnd": "#48843d",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#fdfef9",
+    "panel": "#fbfef7",
+    "code": "#fafdf3",
+    "ink": "#212a1c",
+    "muted": "#68796a",
+    "line": "#eaf7cb",
+    "primary": "#647d2f",
+    "secondary": "#47823c",
+    "highlight": "#787654",
+    "accent": "#647d2f",
+    "buttonStart": "#667f30",
+    "buttonEnd": "#48843d",
+    "buttonText": "#ffffff"
+  }
+}

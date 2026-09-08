@@ -1,181 +1,215 @@
 {
-  "schema": 1,
+  "schema": 3,
   "name": "envelcost",
   "github": "https://github.com/SuperMarioYL/envelcost",
   "host": "envelcost.lei6393.com",
+  "palette": "auto",
   "lang": {
-    "primary": "zh",
+    "primary": "en",
     "toggle": true
   },
-  "accent": [
-    "#3a9b7a"
-  ],
-  "content_version": "v0.8.0",
+  "meta": {
+    "visual_style": "neon-particle",
+    "demo_source": "docs/demo-results.json"
+  },
   "hero": {
-    "eyebrow": {
-      "zh": "离线 · 可复现 · 投到 GPU 座位",
-      "en": "offline · reproducible · onto GPU seats"
-    },
     "headline": {
-      "zh": "同一道编码任务\n不同 harness 烧的 token 差 4 倍",
-      "en": "Same coding task\n4x the tokens across harnesses"
+      "en": "Inspect the text overhead of tool envelopes.",
+      "zh": "检查工具封装带来的文本开销。"
     },
     "sub": {
-      "zh": "把同一道任务用三种工具调用 envelope 配置回放到 DeepSeek 上，离线算出每个 harness 多烧多少 token，再投影到固定 GPU 集群：哪个 harness 撑得住、每座多少钱、整柜 capex 多少，一条命令读出来。",
-      "en": "Replay the same task through three tool-call envelope shapes against DeepSeek, work out offline how many extra tokens each harness burns, then project it onto a fixed GPU cluster — which harness fits, the cost per seat, the rack's total capex, all in one command."
+      "en": "envelcost serializes configured tool-envelope templates, counts their text, and records profiles that can feed a capacity scenario.",
+      "zh": "envelcost 序列化配置的工具封装模板、计算文本 token，并记录可供容量情景使用的 profile。"
     },
-    "command": "envelcost run --task swe-bench-mini-001",
-    "cta": {
-      "zh": "开始测算",
-      "en": "Start measuring"
-    },
-    "ctaGithub": {
-      "zh": "在 GitHub 查看",
-      "en": "View on GitHub"
-    }
+    "href": "#quickstart"
   },
   "advantages": [
     {
       "title": {
-        "zh": "offline 也听你的 --task",
-        "en": "offline heeds your --task too"
+        "en": "Expose counted text",
+        "zh": "展示被统计文本"
       },
       "body": {
-        "zh": "默认的 offline run 一直不把 --task 透进去——你 --task swe-bench-mini-001，本想只测这一道，可 offline 路径调 run_benchmark 时没带 task_ids，5 道 canonical 任务全跑了（--task 在 offline 是死选项，v0.2.0 只修了 online 那半）。现在 --task 在 online 和 offline 两条路径都一样穿透：默认 swe-bench-mini 仍是全集，具体 id 只跑那一道；打错 --task 在跑之前就 BadParameter，一分不花。",
-        "en": "The default offline run never threaded --task through — you passed --task swe-bench-mini-001 to measure just that one, but the offline path called run_benchmark with no task filter, so all 5 canonical tasks ran (--task was a dead option in offline mode; v0.2.0 only fixed the online half). Now --task threads through both the online and offline paths identically: the default swe-bench-mini still resolves to the full set, a specific id runs just that one task; a typoed --task surfaces as BadParameter before anything runs, at $0."
-      },
-      "chips": [
-        "› offline × online 都听 --task",
-        "› 点名哪道只跑哪道",
-        "› 打错 --task → $0"
-      ]
+        "en": "You can inspect the exact serialization.",
+        "zh": "可以检查确切序列化内容。"
+      }
     },
     {
       "title": {
-        "zh": "store 不再重复计行",
-        "en": "store no longer duplicates rows"
+        "en": "Separate format from model",
+        "zh": "区分格式与模型"
       },
       "body": {
-        "zh": "store 一直是追加写、读取不去重——每跑一遍 envelcost run，profiles.jsonl 就多出一整份重复测量，report 的表和 JSON 里出现 N 份一模一样的行，projector 读到的也是重复行；换个 --harnesses 子集再跑，旧子集的行还混在新行里。现在 store 按 (task, harness) 去重替换、原子重写：重复 run 只刷新、不堆叠，report 永远只反映最新一次测算，文件也不再无限增长。",
-        "en": "The store always wrote in append mode and never de-duplicated on read — every envelcost run added a full duplicate measurement set to profiles.jsonl, so the report table and JSON showed N identical rows and the projector read duplicated rows; re-running with a different --harnesses subset left the old subset's rows mixed in with the new. Now the store upserts by (task, harness) with an atomic rewrite: a repeated run refreshes in place instead of stacking, report always reflects the latest measurement, and the file no longer grows without bound."
-      },
-      "chips": [
-        "› (task, harness) 去重替换",
-        "› 重复 run 只刷新",
-        "› report 反映最新测算"
-      ]
+        "en": "Use the same tokenizer when comparing representations.",
+        "zh": "比较不同表示时可使用同一 tokenizer。"
+      }
     },
     {
       "title": {
-        "zh": "投影到你真实的 GPU 座位",
-        "en": "Project it onto your real GPU seats"
+        "en": "Explicit projections",
+        "zh": "明确投影假设"
       },
       "body": {
-        "zh": "给定你的 GPU 数和并发座位数，按你测出来的跨 harness 差距，告诉你哪个 harness 撑得住、哪个撑不住、每座多少钱、整柜 capex 多少。换一台机器、换个座位数，重算只需一条命令——envelcost project --gpus 8xH100 --seats 50。",
-        "en": "Give it your GPU count and concurrent seat target, and from the cross-harness gap you measured it tells you which harness fits, which doesn't, the cost per seat, and the rack's total capex. Swap a GPU or a seat count, re-run one command — envelcost project --gpus 8xH100 --seats 50."
+        "en": "Capacity output remains a scenario over supplied ratios.",
+        "zh": "容量输出仍是基于给定比值的情景。"
+      }
+    }
+  ],
+  "demo": {
+    "title": {
+      "en": "Run it on a complete example",
+      "zh": "运行完整示例"
+    },
+    "note": {
+      "en": "Serialize one complete read tool in compact and JSON-schema forms and count both with the same available cl100k tokenizer.",
+      "zh": "将一个完整 read 工具序列化为紧凑和 JSON-schema 形式，并使用同一个可用 cl100k tokenizer 统计。"
+    },
+    "source": "https://github.com/SuperMarioYL/envelcost/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": "Recorded run",
+        "body": "Serialize one explicit tool definition in two project representations and count both with the same available cl100k tokenizer. No real harness capture, model execution, GPU capacity or preserved tool-schema equivalence.",
+        "command": ".venv/bin/python examples/presentation-demo.py",
+        "output": "{\"representation\": \"compact\", \"text\": \"[tool:read] Read a file\\nargs: path\", \"tokens_same_cl100k\": 12}\n{\"representation\": \"json-schema\", \"text\": \"{\\\"type\\\":\\\"function\\\",\\\"function\\\":{\\\"name\\\":\\\"read\\\",\\\"description\\\":\\\"Read a file\\\",\\\"parameters\\\":{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"path\\\":{\\\"type\\\":\\\"string\\\"}},\\\"required\\\":[\\\"path\\\"]}}}\", \"tokens_same_cl100k\": 37}\ncl100k available: True",
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg"
+      }
+    ]
+  },
+  "quickstart": {
+    "title": {
+      "en": "Try it locally",
+      "zh": "本地上手"
+    },
+    "body": {
+      "en": "Serialize one complete read tool in compact and JSON-schema forms and count both with the same available cl100k tokenizer.",
+      "zh": "将一个完整 read 工具序列化为紧凑和 JSON-schema 形式，并使用同一个可用 cl100k tokenizer 统计。"
+    },
+    "steps": [
+      {
+        "title": {
+          "en": "Install from source",
+          "zh": "从源码安装"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/envelcost.git\ncd envelcost\nuv venv .venv\nuv pip install --python .venv/bin/python -e .\nsource .venv/bin/activate"
       },
-      "chips": [
-        "› H100 / H200 / H3",
-        "› 每座成本 · 整柜 capex"
-      ]
+      {
+        "title": {
+          "en": "Run the included example",
+          "zh": "运行随仓示例"
+        },
+        "code": ".venv/bin/python examples/presentation-demo.py"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "en": "The envelope templates are project models, not captures proving the behavior of named current harnesses.",
+      "zh": "封装模板是项目建模，不是证明当前同名调用框架行为的抓包记录。"
     },
     {
-      "title": {
-        "zh": "离线 · 可复现 · 数据不出境",
-        "en": "Offline, reproducible, data stays on-prem"
-      },
-      "body": {
-        "zh": "核心测算不联网、不要 API key——按实际请求文本离线 tokenize 算出每个 harness 多烧的 token，谁都能复跑出同一张表。可选的 --online 模式用真实 DeepSeek 用量把输出 token 填齐，只为你点名的 (harness, task) 对付费。开源 MIT，自托管免费。",
-        "en": "The core run needs no network and no API key — it tokenizes the actual request text offline to work out the extra tokens each harness burns, so anyone can reproduce the same table. The optional --online mode fills in real DeepSeek output-token usage, billing only the (harness, task) pairs you named. Open source under MIT, free to self-host."
-      },
-      "chips": [
-        "› 无联网 · 无 API key",
-        "› 离线算 · 谁都能复跑"
-      ]
+      "en": "The compact form omits recursive schema details retained by JSON. Smaller text does not establish equivalent tool-calling behavior.",
+      "zh": "紧凑形式省略 JSON 保留的递归 schema 细节；文本更小不证明工具调用行为等价。"
+    },
+    {
+      "en": "Token ratios alone do not measure throughput or GPU seat capacity. Capacity and cost outputs depend on assumed coefficients and registry data.",
+      "zh": "token 比值不能单独测量吞吐或 GPU 座位容量；容量和费用输出依赖假设系数与登记数据。"
     }
   ],
   "scene": {
-    "kind": "hub-nodes",
-    "nodes": [
-      "deepseek-native",
-      "openai-shape",
-      "claude-code-cliproxy"
+    "kind": "neon-graph",
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg"
+  },
+  "story": {
+    "intro": {
+      "title": {
+        "en": "A concrete task",
+        "zh": "从实际任务出发"
+      },
+      "body": {
+        "en": "A verbose tool schema adds input text before the task itself. Comparing the actual serialized representations exposes what was counted and which schema information each representation retains.",
+        "zh": "冗长工具 schema 会在任务本身之前增加输入文本。比较实际序列化表示，可以看清统计了什么，以及各表示保留了哪些 schema 信息。"
+      }
+    },
+    "sections": [
+      {
+        "title": {
+          "en": "Follow the operation",
+          "zh": "处理过程"
+        },
+        "body": {
+          "en": "ToolDef supplies compact and JSON-schema serializations. EnvelopeConfig combines them with task and turn wrappers. Tokenizer counts the selected representation; Runner stores EnvelopeProfile records, and Projector applies configured capacity assumptions to their ratios.",
+          "zh": "ToolDef 提供紧凑与 JSON-schema 序列化。EnvelopeConfig 与任务、轮次包装组合，Tokenizer 计算 token，Runner 保存 EnvelopeProfile，Projector 按配置容量假设使用这些比值。"
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "en": "Follow the operation",
+            "zh": "处理过程"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "How envelcost works",
+          "zh": "envelcost 的工作方式"
+        },
+        "body": {
+          "en": "ToolDef supplies compact and JSON-schema serializations. EnvelopeConfig combines them with task and turn wrappers. Tokenizer counts the selected representation; Runner stores EnvelopeProfile records, and Projector applies configured capacity assumptions to their ratios.",
+          "zh": "ToolDef 提供紧凑与 JSON-schema 序列化。EnvelopeConfig 与任务、轮次包装组合，Tokenizer 计算 token，Runner 保存 EnvelopeProfile，Projector 按配置容量假设使用这些比值。"
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "en": "How envelcost works",
+            "zh": "envelcost 的工作方式"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Connect the pieces",
+          "zh": "输入与输出"
+        },
+        "body": {
+          "en": "The following routes are implemented in the source. Choose the input that matches your task and keep the resulting artifact with your project.",
+          "zh": "以下路径已有源码实现。按任务选择输入，并把生成的结果与项目一起保存。"
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "en": "Connect the pieces",
+            "zh": "输入与输出"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "en": "Configuration",
+          "zh": "配置"
+        },
+        "body": {
+          "en": "run accepts a configured harness list and task selection; its default path is offline template tokenization. Optional online mode makes real requests. Tokenizer fallback can use character-based estimates, so retain which tokenizer was available when comparing profiles.",
+          "zh": "run 接收配置封装列表和任务选择，默认是离线模板分词；可选在线模式会实际请求。Tokenizer 回退可能使用字符估算，因此比较 profile 时应保留实际可用 tokenizer 信息。"
+        }
+      },
+      {
+        "title": {
+          "en": "Further use",
+          "zh": "进一步使用"
+        },
+        "body": {
+          "en": "The CLI exposes the following operations. Commands after the example use your own paths or identifiers.",
+          "zh": "CLI 提供以下操作。示例之外的命令需要替换成你的文件路径或标识。"
+        },
+        "code": "envelcost run\nenvelcost report\n# Scenario projection, not a load test:\nenvelcost project --gpus 8xH100 --seats 50"
+      }
     ]
-  },
-  "cta": {
-    "headline": {
-      "zh": "把跨 harness 的 token 成本差距，算成信创 GPU 集群的容量数字",
-      "en": "Turn cross-harness token-cost gaps into capacity numbers for on-prem GPU clusters"
-    },
-    "sub": {
-      "zh": "开源、MIT、自托管免费。容量测算这一核心动作，永不设墙。",
-      "en": "Open source, MIT, free to self-host. The core act of sizing your capacity is never gated."
-    },
-    "button": {
-      "zh": "在 GitHub 上开始",
-      "en": "Get started on GitHub"
-    }
-  },
-  "footer": {
-    "tag": {
-      "zh": "把跨 harness 的 token 成本差距，算成信创 GPU 集群的容量数字",
-      "en": "Turning cross-harness token-cost gaps into capacity numbers for on-prem GPU clusters"
-    }
-  },
-  "changelog": [
-    {
-      "version": "v0.8.0",
-      "date": "2026-08-31",
-      "zh": "v0.8.0：envelcost --version 现在报对版本号（包 __version__ 常量此前卡在 0.6.0，与 VERSION/pyproject 不一致，演示 gif 也跟着错版）；envelcost-report.md 的方差判定门现在如实反映 floor_evaluable——单 harness 运行不再被写成 'kill floor held: True'，而是 'skipped (<2 harnesses)'，与 CLI stdout 一致，写出来的报告不再误导。",
-      "en": "v0.8.0: envelcost --version now reports the correct version (the package __version__ constant was stuck at 0.6.0, out of sync with VERSION/pyproject, so the demo gif showed the wrong version too); the envelcost-report.md variance gate now honestly reflects floor_evaluable — a single-harness run is no longer written as 'kill floor held: True' but as 'skipped (<2 harnesses)', matching the CLI stdout so the persisted report no longer misleads."
-    },
-    {
-      "version": "v0.7.0",
-      "date": "2026-08-23",
-      "zh": "v0.7.0：store 的两处 json.loads 读取循环（_store 重读 + load_profiles）现在 try/except 跳过坏行并告警——profiles.jsonl 里一行损坏（遗留的非原子追加、手改、外部损坏）不再让 report/project 整个崩掉；下一次 run 的原子重写顺手自愈坏行。",
-      "en": "v0.7.0: both json.loads read loops in the store (_store re-read + load_profiles) now try/except-skip-and-warn bad lines — a single corrupt line in profiles.jsonl (legacy pre-atomic append, manual edit, external corruption) no longer bricks report/project; the next run's atomic rewrite self-heals the bad line."
-    },
-    {
-      "version": "v0.6.0",
-      "date": "2026-08-19",
-      "zh": "v0.6.0：online usage 的 shape 校验收紧（异常用量不再被静默算成零）；tokenizer 不再硬编码 trust_remote_code，移除未受信远程代码的信任面。",
-      "en": "v0.6.0: tightened the online usage shape check (an anomalous usage no longer silently zeroes); the tokenizer no longer hard-codes trust_remote_code, removing the untrusted-remote-code surface."
-    },
-    {
-      "version": "v0.5.0",
-      "date": "2026-08-16",
-      "zh": "v0.5.0 修复了 project 摘要：单 harness store 不再误报 'deepseek-native does NOT fit'（基线现在按 1.0x parity 投影）。--gpus 校验：打错的（H100x8）、0（0xH100）、负数（-2xH100）现在抛干净错误，不再是 traceback 或静默的 0/负 capex 投影。新增 envelcost project --json 机器可读容量投影，对齐 report 已有的 JSON 输出。",
-      "en": "v0.5.0 fixes the project summary so a single-harness store no longer falsely reports 'deepseek-native does NOT fit' (it now projects the baseline at 1.0x parity). --gpus validation: a typoed (H100x8), zero (0xH100), or negative (-2xH100) count now raises a clean error instead of a traceback or a silently bogus 0/negative-capex projection. Adds envelcost project --json for machine-readable capacity projection, mirroring the JSON output report already ships."
-    },
-    {
-      "version": "v0.4.0",
-      "zh": "m1 方差判定门现在测量真实的跨测试集离散度（而非相对基线的最大值），排除基线的双测试集运行不再会静默放行。--task 逗号列表里匹配不到任何任务的部分现在会明确报错，而不再悄悄只跑子集。",
-      "en": "The m1 variance kill gate now measures true cross-harness spread (not max-vs-baseline), so a 2-harness run excluding the baseline can no longer silently hold. A --task comma-list part matching nothing now raises a clear error instead of quietly running a subset."
-    },
-    {
-      "version": "v0.3.0",
-      "date": "2026-08-09",
-      "zh": [
-        "offline（默认）run 现在尊重 --task——过滤条件透进 run_benchmark，点名哪道任务就只跑哪道；之前 offline 路径不带 task_ids，--task 在 offline 是死选项（v0.2.0 只修了 online 那半）。",
-        "store 不再追加重复行——改为按 (task, harness) 去重替换 + 原子重写，重复 envelcost run 只刷新不堆叠，report/project 永远只反映最新一次测算，文件也不再无限增长（v0.2.0 延期的中置信度 bug，现高置信度修复）。"
-      ],
-      "en": [
-        "The offline (default) run now respects --task — the filter threads into run_benchmark, so naming a task runs only that one; previously the offline path passed no task_ids, making --task a dead option in offline mode (v0.2.0 only fixed the online half).",
-        "The store no longer appends duplicate rows — it now upserts by (task, harness) with an atomic rewrite, so a repeated envelcost run refreshes in place instead of stacking, and report/project always reflect the latest measurement with no unbounded file growth (the medium-confidence bug deferred in v0.2.0, now fixed at high confidence)."
-      ]
-    },
-    {
-      "version": "v0.2.0",
-      "date": "2026-08-04",
-      "zh": [
-        "--online 现在尊重 --harnesses 和 --task——过滤条件穿透进 run_online，只为你选中的 (harness, task) 对走付费 DeepSeek API，不再把整张 5 任务 × 3 envelope 网格计费；--task 在任何付费调用前就被解析校验，打错当场 BadParameter、一分不花。",
-        "跨 envelope 的 kill floor 不再被单 harness 运行假性证伪——新增 floor_evaluable 门控：不足 2 个 harness 时跳过 kill gate，退出干净。"
-      ],
-      "en": [
-        "--online now respects --harnesses and --task — the filter threads into run_online, billing only the (harness, task) pairs you selected through the paid DeepSeek API instead of the full 5-task × 3-envelope grid; --task is resolved and validated before any paid call, so a typo surfaces as BadParameter at $0.",
-        "The cross-envelope kill floor is no longer falsely falsified by a single-harness run — a new floor_evaluable gate skips the kill floor when fewer than 2 harnesses ran, exiting clean."
-      ]
-    }
-  ],
-  "generated_at": "2026-08-31T04:36:00Z"
+  }
 }
