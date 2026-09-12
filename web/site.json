@@ -224,8 +224,14 @@
       }
     ]
   },
-  "content_version": "v0.8.0",
+  "content_version": "v0.9.0",
   "changelog": [
+    {
+      "version": "v0.9.0",
+      "date": "2026-09-12",
+      "zh": "v0.9.0：wheel 构建修复——pyproject 的 wheel 目标同时声明 packages 和 envelcost/tasks 的 force-include，hatchling 因此把同一文件打包两次并硬报错，自 v0.1.0 起每个 tag 的 release 构建全红、pip install 从 git 源始终装不上；去掉冗余 force-include 后 wheel/sdist 首次构建成功，并已作为 release 资产发布。run --online 缺 DEEPSEEK_API_KEY 现在输出干净的一行错误（退出码 1），不再抛 Python traceback。run 命令每次调用只计算一次 variance report（此前重复计算两次）。quickstart 不再建议未限定来源的 uvx/PyPI 安装（包未发布 PyPI）；README 记录的演示 token 数与实际计算值对齐并由测试钉住。",
+      "en": "v0.9.0: the wheel build is fixed — the pyproject wheel target declared both packages and a force-include of envelcost/tasks, so hatchling added the same file to the archive twice and hard-failed; every release build since v0.1.0 was red and pip-install-from-git never worked. With the redundant force-include dropped, the wheel/sdist build for the first time and now ship as release assets. run --online without DEEPSEEK_API_KEY prints a clean one-line error (exit 1) instead of a Python traceback. The run command computes the variance report once per invocation (previously twice). The quickstart no longer suggests an unqualified uvx/PyPI install (the package is not on PyPI); the README's recorded demo token counts are pinned to the computed values by a test."
+    },
     {
       "version": "v0.8.0",
       "date": "2026-08-31",
