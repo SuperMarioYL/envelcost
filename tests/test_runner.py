@@ -487,3 +487,87 @@ def test_version_constant_in_lockstep_with_version_file_and_pyproject():
         f"__version__ ({envelcost.__version__}) != pyproject version "
         f"({pyproject_version})"
     )
+
+
+# --- v0.9.0 grill bug-hunt fixes (amend-envelcost-v0.9.0) ---
+
+def _repo_root() -> "Path":
+    import envelcost
+    from pathlib import Path
+    return Path(envelcost.__file__).resolve().parent.parent
+
+
+def test_wheel_builds_and_contains_tasks_yaml(tmp_path):
+    """fix-wheel-build-duplicate-tasks-include: the wheel target must actually
+    build. pyproject declared `packages = ["envelcost"]` (which already carries
+    envelcost/tasks/swe-bench-mini.yaml) AND a force-include mapping
+    "envelcost/tasks" -> "envelcost/tasks", so hatchling added the same file to
+    the archive twice and hard-failed every wheel build ("A second file is
+    being added to the wheel archive at the same path") — release.yml's
+    `python -m build` failed on EVERY tag from v0.1.0 through v0.8.0, and
+    `pip install git+...` was broken for every user. CI never caught it
+    because it smoke-tests via an editable install. This test drives the same
+    WheelBuilder `python -m build` invokes, so the artifact-producing path is
+    exercised on every run."""
+    import zipfile
+
+    hatchling = pytest.importorskip("hatchling")
+    from hatchling.builders.wheel import WheelBuilder
+
+    builder = WheelBuilder(str(_repo_root()))
+    artifacts = list(builder.build(directory=str(tmp_path), versions=["standard"]))
+    assert artifacts, "wheel builder produced no artifact"
+    names = zipfile.ZipFile(artifacts[0]).namelist()
+    # The tasks YAML — the very file the duplicate force-include collided on —
+    # must be carried by the wheel via `packages = ["envelcost"]`.
+    assert "envelcost/tasks/swe-bench-mini.yaml" in names
+
+
+def test_docs_install_commands_resolve():
+    """fix-readme-install-commands-404: no shipped doc may instruct a bare
+    PyPI install (`uv tool install envelcost` / `pipx install envelcost` /
+    `uvx envelcost`) — the package is not published to PyPI, so those commands
+    fail at minute zero of the documented happy path. The v0.8.0 READMEs led
+    with `uv tool install envelcost`; the README rewrite on main replaced the
+    install sections, and this pins every doc surface (both READMEs +
+    examples/quickstart.sh) against regressing to a bare PyPI instruction."""
+    for rel in ("README.md", "README.en.md", "examples/quickstart.sh"):
+        text = (_repo_root() / rel).read_text(encoding="utf-8")
+        assert "uv tool install envelcost" not in text, f"{rel} instructs a bare PyPI install"
+        assert "pipx install envelcost" not in text, f"{rel} instructs a bare PyPI install"
+        assert "uvx envelcost" not in text, f"{rel} instructs a bare `uvx envelcost`"
+
+
+def test_readme_recorded_demo_counts_match_computed():
+    """fix-readme-roadmap-claims-drift (theme guard): the original defect —
+    README claims drifting from shipped reality (an unchecked m2 box, a stale
+    2.83–3.27x multiplier range) — was removed upstream by the post-v0.8.0
+    README rewrite before this iteration. This guard pins the SAME honesty
+    contract on the rewritten READMEs: the recorded presentation-demo token
+    counts they embed must equal what the shipped ToolDef/Tokenizer actually
+    compute, so a future tokenizer/template change that invalidates the
+    recorded numbers fails here instead of silently misleading readers."""
+    from envelcost.envelope import ToolDef
+    from envelcost.tokenizer import Tokenizer
+
+    tool = ToolDef(
+        name="read",
+        description="Read a file",
+        parameters={
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    )
+    tok = Tokenizer()
+    compact = tok.count(tool.native_block(), "openai")
+    schema = tok.count(tool.openai_block(), "openai")
+
+    for rel in ("README.md", "README.en.md"):
+        text = (_repo_root() / rel).read_text(encoding="utf-8")
+        assert f'"tokens_same_cl100k": {compact}' in text, (
+            f"{rel} recorded compact count drifted from the computed {compact}"
+        )
+        assert f'"tokens_same_cl100k": {schema}' in text, (
+            f"{rel} recorded json-schema count drifted from the computed {schema}"
+        )

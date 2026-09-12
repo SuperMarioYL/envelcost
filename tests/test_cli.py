@@ -434,3 +434,49 @@ def test_report_md_two_harness_passing_says_held(cli_runner, tmp_path):
     # A genuinely-held gate must not be mislabeled as skipped/unevaluable.
     assert "skipped" not in md, md
     assert "unevaluable" not in md, md
+
+
+# --- v0.9.0 grill bug-hunt fixes (amend-envelcost-v0.9.0) ---
+
+def test_run_online_missing_api_key_clean_error(cli_runner, tmp_path, monkeypatch):
+    """fix-run-online-missing-key-traceback: `run --online` without
+    DEEPSEEK_API_KEY must surface a clean one-line CLI error with a non-zero
+    exit code — NOT a Python traceback. Previously the RuntimeError raised by
+    Runner.run_online propagated through typer and dumped a full rich
+    traceback, the only documented main-path error that did so."""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(app, ["run", "--online", "--store", str(store)])
+    assert result.exit_code == 1, result.output
+    # The friendly runner message, not a traceback.
+    assert "DEEPSEEK_API_KEY not set" in result.output
+    assert "error:" in result.output
+    assert "Traceback" not in result.output
+    # Nothing was measured or stored.
+    assert not (store / "profiles.jsonl").exists()
+
+
+def test_run_command_computes_variance_report_once(cli_runner, tmp_path, monkeypatch):
+    """fix-run-command-duplicate-variance-computation: the `run` command must
+    compute the variance report exactly once per invocation. Previously
+    cli.py called runner.variance_report(profiles) twice — once inside the
+    Reporter.render(...) arguments and again for the gate echo — the same
+    pure computation running twice on every run."""
+    calls: list[int] = []
+    original = Runner.variance_report
+
+    def counting(self, profiles=None):
+        calls.append(1)
+        return original(self, profiles)
+
+    monkeypatch.setattr(Runner, "variance_report", counting)
+
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app, ["run", "--harnesses", "openai-shape", "--store", str(store)]
+    )
+    assert result.exit_code == 0, result.output
+    # Exactly one computation per `run` invocation (was 2 pre-fix).
+    assert len(calls) == 1
+    # The rendered output still carries the full gate line.
+    assert "m1 variance gate" in result.output

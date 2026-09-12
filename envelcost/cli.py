@@ -134,14 +134,24 @@ def run(
         [t.task_id for t in runner.tasks.tasks], task
     )
     if online:
-        profiles = runner.run_online(harnesses=harness_list, task_ids=task_ids)
+        try:
+            profiles = runner.run_online(harnesses=harness_list, task_ids=task_ids)
+        except RuntimeError as e:
+            # The only RuntimeError run_online raises is the missing-API-key
+            # guard (runner.py) — surface it as a clean one-line CLI error
+            # with a non-zero exit, not a Python traceback. Every other
+            # user-input error in this CLI already reports this way
+            # (fix-run-online-missing-key-traceback).
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(1)
     else:
         profiles = runner.run_benchmark(harnesses=harness_list, task_ids=task_ids)
-    table = Reporter(store_dir=runner.store_dir).render(
-        profiles, runner.variance_report(profiles).to_dict()
-    )
-    typer.echo(table)
+    # Compute the variance report ONCE and feed both the rendered table/report
+    # files and the gate echo below — previously the same pure computation ran
+    # twice per `run` invocation (fix-run-command-duplicate-variance-computation).
     vr = runner.variance_report(profiles)
+    table = Reporter(store_dir=runner.store_dir).render(profiles, vr.to_dict())
+    typer.echo(table)
     typer.echo("")
     if vr.floor_evaluable:
         floor_status = "HELD" if vr.floor_passed else "BROKEN — halt"

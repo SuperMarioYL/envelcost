@@ -4,6 +4,71 @@ All notable changes to **envelcost** are documented here. Versions follow the
 grill bug-hunt amendment cadence. Each entry lists the fix-ids from the
 amendment findings YAML.
 
+## [0.9.0] — 2026-09-12
+
+The v0.9.0 grill bug-hunt (amend-envelcost-v0.9.0). Headline: the wheel build
+has been broken since the first release — this version makes the package
+installable from source for the first time.
+
+### Fixed
+
+- **fix-wheel-build-duplicate-tasks-include** (`pyproject.toml`): the wheel
+  target declared `packages = ["envelcost"]` (which already carries
+  `envelcost/tasks/swe-bench-mini.yaml`) AND a force-include mapping
+  `"envelcost/tasks" -> "envelcost/tasks"`, so hatchling added the same file
+  to the archive twice and hard-failed with "A second file is being added to
+  the wheel archive at the same path: `envelcost/tasks/swe-bench-mini.yaml`".
+  The release workflow's `python -m build` step failed on EVERY tag from
+  v0.1.0 through v0.8.0 (8/8 red release runs), meaning the repo never
+  produced a buildable wheel and `pip install
+  git+https://github.com/SuperMarioYL/envelcost` was broken for every user;
+  CI never caught it because the smoke test installs editable. The redundant
+  force-include is removed — a regression test now drives hatchling's
+  WheelBuilder (the same builder `python -m build` invokes) on every run and
+  asserts the tasks YAML ships in the wheel.
+- **fix-readme-install-commands-404** (`examples/quickstart.sh`): the
+  v0.8.0 READMEs led with `uv tool install envelcost` / `pipx install
+  envelcost`, but the package has never been published to PyPI (the release
+  workflow's PyPI job is opt-in and was never enabled — and could not have
+  succeeded while the wheel build failed), so the documented install path
+  404'd at minute zero. The README rewrite that landed on main after the
+  v0.8.0 tag already replaced both install sections with a working
+  clone-and-editable flow; this release fixes the remaining surface
+  (`examples/quickstart.sh`'s bare `uvx envelcost` mention → the git-source
+  form that now verifiably builds) and adds a docs regression test pinning
+  all doc surfaces against regressing to a bare PyPI instruction.
+- **fix-run-online-missing-key-traceback** (`envelcost/cli.py`): `envelcost
+  run --online` without `DEEPSEEK_API_KEY` dumped a full Python traceback
+  (the RuntimeError from `Runner.run_online`) instead of a clean CLI error —
+  the only documented main-path error that did so. The CLI now surfaces the
+  runner's friendly one-line message with exit code 1 and no traceback.
+- **fix-run-command-duplicate-variance-computation** (`envelcost/cli.py`):
+  the `run` command computed `variance_report(profiles)` twice per
+  invocation (once inside the `Reporter.render(...)` arguments, once for the
+  gate echo). It is now computed once and reused; a regression test asserts
+  exactly one call per run.
+- **fix-readme-roadmap-claims-drift** (no code change — resolved upstream):
+  the defect this fix targeted (the v0.8.0 READMEs' roadmap section: an
+  unchecked m2 box for long-shipped functionality and a stale "2.83–3.27x"
+  multiplier range vs the measured 2.81–2.99x) was removed by the post-tag
+  README rewrite that landed on main before this iteration. The rewritten
+  READMEs' recorded demo numbers were verified against the shipped
+  `presentation-demo` output (12/37 tokens, exact match), and a guard test
+  now pins those recorded counts to the computed values so future drift
+  fails CI instead of misleading readers.
+
+### Tests
+
+- Wheel-build regression: hatchling `WheelBuilder` build succeeds and
+  `envelcost/tasks/swe-bench-mini.yaml` is present in the artifact
+  (the artifact-producing path CI never exercised).
+- Docs regression: no shipped doc (README.md, README.en.md,
+  examples/quickstart.sh) instructs a bare PyPI install command.
+- README recorded demo counts equal the computed ToolDef/Tokenizer counts.
+- `run --online` without the API key exits 1 with the friendly message and
+  no traceback; nothing is measured or stored.
+- `Runner.variance_report` is called exactly once per `run` invocation.
+
 ## [0.8.0] — 2026-08-31
 
 The v0.8.0 grill bug-hunt (amend-envelcost-v0.8.0). Two honest version/report
