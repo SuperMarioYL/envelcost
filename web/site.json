@@ -206,10 +206,10 @@
           "en": "Configuration",
           "zh": "配置"
         },
-        "body": {
-          "en": "run accepts a configured harness list and task selection; its default path is offline template tokenization. Optional online mode makes real requests. Tokenizer fallback can use character-based estimates, so retain which tokenizer was available when comparing profiles.",
-          "zh": "run 接收配置封装列表和任务选择，默认是离线模板分词；可选在线模式会实际请求。Tokenizer 回退可能使用字符估算，因此比较 profile 时应保留实际可用 tokenizer 信息。"
-        }
+      "body": {
+        "en": "run accepts a configured harness list and task selection; its default path is offline template tokenization. Optional online mode makes real requests. Invalid CLI input — an unknown harness, a non-matching --task, or a bad --gpus spec — surfaces as a one-line error with a non-zero exit, not a traceback. Tokenizer fallback can use character-based estimates, so retain which tokenizer was available when comparing profiles.",
+        "zh": "run 接收配置封装列表和任务选择，默认是离线模板分词；可选在线模式会实际请求。非法 CLI 输入——未知 harness、不匹配的 --task、错误的 --gpus 规格——会输出一行错误并以非零退出码结束，不倾倒 traceback。Tokenizer 回退可能使用字符估算，因此比较 profile 时应保留实际可用 tokenizer 信息。"
+      }
       },
       {
         "title": {
