@@ -224,8 +224,14 @@
       }
     ]
   },
-  "content_version": "v0.9.0",
+  "content_version": "v0.10.0",
   "changelog": [
+    {
+      "version": "v0.10.0",
+      "date": "2026-10-16",
+      "zh": "v0.10.0：project 的 --gpus 校验错误现在输出干净的一行错误（退出码 1）——此前任何非法 GPU 规格（缺 x、写成 H100x8、0xH100、-2xH100、未知芯片 8xTPU）都会在真实终端里倾倒完整的 rich traceback（v0.5.0 曾声称已修干净，但旧测试在 CliRunner 下捕获了异常，缺陷因此不可见）。project 至此是主路径命令里最后一个不再倾倒 traceback 的输入错误。发布资产卫生：v0.10.0 release 只附 wheel + sdist——uv build 会往 dist/ 里放一个 .gitignore，v0.9.0 的 release 资产因此混进了这个杂项文件，现在上传前删除。",
+      "en": "v0.10.0: the project command's --gpus validation now prints a clean one-line error (exit 1) — previously every invalid GPU spec (missing x, reversed H100x8, 0xH100, -2xH100, unknown chip 8xTPU) dumped a full rich traceback in a real terminal (v0.5.0 claimed this was fixed, but the old test captured the exception under CliRunner so the defect stayed invisible). project is now the last main-path command whose input error no longer dumps a traceback. Release-asset hygiene: the v0.10.0 release carries exactly wheel + sdist — uv build drops a .gitignore into dist/ and the v0.9.0 release assets picked it up as junk; it is now deleted before upload."
+    },
     {
       "version": "v0.9.0",
       "date": "2026-09-12",
