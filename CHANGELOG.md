@@ -4,6 +4,36 @@ All notable changes to **envelcost** are documented here. Versions follow the
 grill bug-hunt amendment cadence. Each entry lists the fix-ids from the
 amendment findings YAML.
 
+## [0.10.0] — 2026-10-16
+
+The v0.10.0 grill bug-hunt (amend-envelcost-v0.10.0). Two fixes: the
+last remaining main-path CLI traceback, and release-asset hygiene. No behavior
+change to the variance/runner/projector logic (pinned by the 65 prior tests).
+
+### Fixed
+
+- **fix-project-gpus-spec-traceback** (`envelcost/cli.py`): every bad `--gpus`
+  input (no-`x` spec, reversed `H100x8`, `0xH100`, `-2xH100`, unknown chip
+  `8xTPU`) raised a bare `ValueError` from `parse_gpu_spec`/`resolve_gpu`
+  (`envelcost/config.py`) that escaped the `project` command uncaught — under
+  typer's pretty-exceptions handler, every real-terminal invocation printed a
+  full rich Traceback panel (verified against shipped v0.9.0: frames
+  cli.py → projector.py → config.py). The v0.5.0 changelog claimed a clean
+  error, and the existing regression test passed vacuously: it asserted only
+  `"Traceback" not in result.output`, which click's `CliRunner` guarantees by
+  capturing `result.exception` without printing it. The `project` command now
+  catches the `ValueError` and echoes the same friendly one-line message with
+  exit code 1 (mirroring the v0.9.0 `run --online` missing-key guard). The
+  strengthened test asserts `result.exception is None` and the friendly message
+  per bad-spec class, so the vacuous pass is no longer possible.
+- **fix-release-assets-junk-gitignore** (release pipeline): the v0.9.0 GitHub
+  release shipped three assets — `default.gitignore` (junk),
+  `envelcost-0.9.0-py3-none-any.whl`, `envelcost-0.9.0.tar.gz`. `uv build`
+  drops a `.gitignore` into `dist/` and the publish flow uploads every file in
+  `dist/`; `release.yml` is artifacts-only, so the manual publish is the sole
+  asset owner. The v0.10.0 publish deletes `dist/.gitignore` immediately after
+  the build so the release carries exactly wheel + sdist and nothing else.
+
 ## [0.9.0] — 2026-09-12
 
 The v0.9.0 grill bug-hunt (amend-envelcost-v0.9.0). Headline: the wheel build

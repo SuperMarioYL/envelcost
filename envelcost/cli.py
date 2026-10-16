@@ -227,7 +227,20 @@ def project(
 ) -> None:
     """Project per-harness seat-capacity + cost/seat onto a fixed GPU cluster."""
     projector = Projector.from_store(store) if store else Projector.from_store()
-    projection = projector.project(gpus, seats)
+    try:
+        projection = projector.project(gpus, seats)
+    except ValueError as e:
+        # parse_gpu_spec / resolve_gpu (config.py) raise ValueError with the
+        # friendly message for every bad --gpus input (no-'x' spec, reversed
+        # 'H100x8', 0/negative count, unknown chip). Left uncaught, typer's
+        # pretty-exceptions handler dumps a full rich traceback in a real
+        # terminal — the last main-path error that did so, contradicting the
+        # v0.5.0 changelog claim. Surface the same clean one-line error +
+        # non-zero exit the other user-input paths use
+        # (fix-project-gpus-spec-traceback), mirroring the run --online
+        # missing-key guard above.
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
     if json_output:
         # Machine-readable path: print Projection.to_dict() as JSON and skip the
         # human text table + summary line. No new deps; to_dict() already

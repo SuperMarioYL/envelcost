@@ -285,20 +285,45 @@ def test_project_partial_store_does_not_falsify_baseline_fit(cli_runner, tmp_pat
 
 
 def test_project_bad_gpu_count_surfaces_clean_error(cli_runner, tmp_path):
-    """fix-parse-gpu-spec-traceback-and-zero-count (end-to-end): a zero/typoed
-    --gpus count must exit non-zero with a clean human message — NOT a Python
-    traceback and NOT a silently bogus 0/negative-capex projection.
-    """
+    """fix-parse-gpu-spec-traceback-and-zero-count + fix-project-gpus-spec-traceback
+    (end-to-end): a zero/typoed/unknown --gpus spec must exit non-zero with a
+    clean one-line human message — NOT a Python traceback and NOT a silently
+    bogus 0/negative-capex projection.
+
+    Regression history: the v0.5.0 fix made parse_gpu_spec raise a friendly
+    ValueError instead of a raw int() traceback, but the ValueError still
+    escaped the `project` command uncaught — under typer's pretty-exceptions
+    handler every real-terminal invocation printed a full rich Traceback panel
+    (verified against shipped v0.9.0: frames cli.py -> projector.py ->
+    config.py). The old form of this test passed vacuously: it asserted only
+    `"Traceback" not in result.output`, which click's CliRunner guarantees by
+    capturing result.exception without printing it. The fix catches the
+    ValueError in the command and exits cleanly, so the load-bearing assertion
+    is that NO exception escapes (result.exception is None) and the friendly
+    message is echoed."""
     store = tmp_path / ".envelcost"
     store.mkdir(parents=True, exist_ok=True)
-    for spec in ("0xH100", "-2xH100", "H100x8"):
+    friendly = {
+        "0xH100": "count must be >= 1",
+        "-2xH100": "count must be >= 1",
+        "H100x8": "bad gpu spec",
+        "8xTPU": "unknown GPU",
+    }
+    for spec, msg in friendly.items():
         result = cli_runner.invoke(
             app,
             ["project", "--gpus", spec, "--seats", "50", "--store", str(store)],
         )
         assert result.exit_code != 0, result.output
-        # A clean human message, not a raw traceback to stderr.
+        # No unexpected exception may escape the command — pre-fix, the
+        # uncaught ValueError landed in result.exception (and dumped a rich
+        # traceback in a real terminal); the fix converts it to a controlled
+        # typer.Exit(1), which click's runner reports as SystemExit.
+        assert isinstance(result.exception, SystemExit), repr(result.exception)
+        # A clean one-line human message, not a raw traceback to stderr.
         assert "Traceback" not in result.output
+        assert "error:" in result.output, result.output
+        assert msg in result.output, result.output
 
 
 def test_project_json_machine_readable(cli_runner, tmp_path):
