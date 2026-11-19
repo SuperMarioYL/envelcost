@@ -16,12 +16,12 @@ harness B 撑不住" number a 信创 ML-platform engineer reads off in one line.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean
 
 from .config import ENVELCOST_STORE, GPU, parse_gpu_spec
-from .envelope import EnvelopeProfile
+from .envelope import EnvelopeProfile, all_envelopes
 
 __all__ = [
     "HarnessCapacity",
@@ -67,6 +67,10 @@ class Projection:
     target_seats: int
     total_capex_cny: float
     rows: list[HarnessCapacity]
+    # Harnesses the caller asked about (or the summary names) with NO measurement
+    # in the store. They have no row — a multiplier would be invented — but they
+    # are reported so machine consumers can see the gap instead of a fit verdict.
+    unmeasured: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -75,6 +79,7 @@ class Projection:
             "target_seats": self.target_seats,
             "total_capex_cny": round(self.total_capex_cny, 0),
             "rows": [r.to_dict() for r in self.rows],
+            "unmeasured": list(self.unmeasured),
         }
 
     def fits_harness(self, harness: str) -> bool | None:
@@ -97,13 +102,22 @@ class Projector:
         runner = Runner(store_dir=store_dir) if store_dir else Runner()
         return cls(profiles=runner.load_profiles())
 
-    def multiplier_for(self, harness: str) -> float:
-        """Mean cross-task multiplier for one harness (baseline=1.0x)."""
+    def multiplier_for(self, harness: str) -> float | None:
+        """Mean cross-task multiplier for one harness, or None when unmeasured.
+
+        The baseline envelope is 1.0x *by definition* — every other multiplier is
+        measured against it — so an unmeasured baseline is still a known ratio.
+        Any other harness with no measured profile has an UNKNOWN multiplier:
+        returning 1.0 (parity) made `project` print a "fits" verdict a measured
+        1.0x would produce, i.e. a fabricated measurement on the commercial hook.
+        """
         vals = [p.multiplier_vs_baseline for p in self.profiles if p.harness == harness]
-        if not vals:
-            # No measurement yet — assume 1.0x (parity) so projection still runs.
+        if vals:
+            return mean(vals)
+        env = all_envelopes().get(harness)
+        if env is not None and env.is_baseline:
             return 1.0
-        return mean(vals)
+        return None
 
     def project(
         self,
@@ -113,6 +127,13 @@ class Projector:
     ) -> Projection:
         """Project per-harness seat-capacity + cost for a cluster + seat target."""
         gpu, count = parse_gpu_spec(gpu_spec)
+        # The seat target is half the projection's input: a 0/negative value has
+        # no meaning and previously rendered a full table (negative deficits,
+        # everything "fits") that read as a measured result. Same <= 0 guard the
+        # GPU count gets in parse_gpu_spec; the CLI already turns this ValueError
+        # into a one-line `error:` + exit 1.
+        if target_seats < 1:
+            raise ValueError(f"target seats must be >= 1, got {target_seats}")
         raw_seats = count * gpu.seats_per_unit()
         total_capex = count * gpu.capex_per_unit_cny
         # Union the derived harness set with the two harnesses the `project`
@@ -120,12 +141,14 @@ class Projector:
         # 1.0x and the OpenAI-shape hook — so a PARTIAL single-harness store
         # (e.g. `envelcost run --harnesses openai-shape`, the natural
         # single-envelope flow the v0.2.0 --harnesses fix made first-class)
-        # still projects every summary-referenced harness at its measured
-        # multiplier (or the 1.0x parity default via multiplier_for if
-        # unmeasured). Without this union, a partial store left deepseek-native
-        # out of `rows`, fits_harness('deepseek-native') returned None, and the
-        # CLI printed a false 'deepseek-native does NOT fit' for the 1.0x
-        # baseline that always fits first (fix-project-summary-false-not-fit).
+        # still projects every summary-referenced harness whose multiplier is
+        # known. Without this union, a partial store left deepseek-native out of
+        # `rows`, fits_harness('deepseek-native') returned None, and the CLI
+        # printed a false 'deepseek-native does NOT fit' for the 1.0x baseline
+        # that always fits first (fix-project-summary-false-not-fit). A candidate
+        # whose multiplier is UNKNOWN (no profile, not the baseline) gets no row:
+        # it is listed on `unmeasured` so no ratio/verdict is invented for it
+        # (fix-project-fabricates-parity-for-unmeasured-harness).
         measured = tuple(sorted({p.harness for p in self.profiles}))
         if harnesses:
             harness_set = tuple(harnesses)
@@ -134,11 +157,15 @@ class Projector:
                 dict.fromkeys(measured + ("deepseek-native", "openai-shape"))
             )
         else:
-            # Empty store: parity fallback for the two summary-named harnesses.
+            # Empty store: the two summary-named harnesses are the candidates.
             harness_set = ("deepseek-native", "openai-shape")
         rows: list[HarnessCapacity] = []
+        unmeasured: list[str] = []
         for h in harness_set:
             m = self.multiplier_for(h)
+            if m is None:
+                unmeasured.append(h)
+                continue
             effective = max(int(raw_seats / m), 1)
             fits = effective >= target_seats
             capex_per_seat = total_capex / effective if effective else float("inf")
@@ -161,4 +188,5 @@ class Projector:
             target_seats=target_seats,
             total_capex_cny=total_capex,
             rows=rows,
+            unmeasured=unmeasured,
         )

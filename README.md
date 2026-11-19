@@ -95,6 +95,10 @@ envelcost project --gpus 8xH100 --seats 50
 
 run 接收配置封装列表和任务选择，默认是离线模板分词；可选在线模式会实际请求。Tokenizer 回退可能使用字符估算，因此比较 profile 时应保留实际可用 tokenizer 信息。
 
+非法输入会被拒绝而不是静默降级：`--harnesses` 为空（而不是省略该选项）是用法错误，未知 harness 会列出有效值；`--seats` 必须 ≥ 1，否则 `project` 输出一行 `error:` 并以退出码 1 结束，不打印投影表。
+
+输出也只在有依据时给结论：`project` 只投影已有测量（或作为 1.0x 基准的 `deepseek-native`）的 harness，未测量的 harness 不再按 1.0x 编造比值，而是以 `unmeasured` 列出（`project --json` 的 `unmeasured` 字段同理）；m1 的 1.5x kill floor 只有在 ≥2 个 harness 且 ≥3 个任务被测量时才给出 HELD/BROKEN，样本更小时显示 SKIPPED 并注明实际样本量。
+
 ## 集成与职责分工
 
 <picture>

@@ -95,6 +95,10 @@ envelcost project --gpus 8xH100 --seats 50
 
 run accepts a configured harness list and task selection; its default path is offline template tokenization. Optional online mode makes real requests. Tokenizer fallback can use character-based estimates, so retain which tokenizer was available when comparing profiles.
 
+Invalid input is rejected rather than silently degraded: an empty `--harnesses` value (as opposed to omitting the option) is a usage error and unknown harness names are listed back; `--seats` must be >= 1, otherwise `project` prints a one-line `error:` and exits 1 without a projection table.
+
+Outputs only state what the data supports: `project` projects only harnesses that have measurements (or `deepseek-native`, which is the 1.0x reference), and an unmeasured harness is listed as `unmeasured` instead of being given an invented 1.0x ratio (the same list appears in the `unmeasured` field of `project --json`); the m1 1.5x kill floor reports HELD/BROKEN only when >=2 harnesses and >=3 tasks were measured, and otherwise says SKIPPED with the actual sample counts.
+
 ## Integrations and responsibilities
 
 <picture>

@@ -571,3 +571,35 @@ def test_readme_recorded_demo_counts_match_computed():
         assert f'"tokens_same_cl100k": {schema}' in text, (
             f"{rel} recorded json-schema count drifted from the computed {schema}"
         )
+
+
+# --- v0.11.0 grill bug-hunt fix (amend-envelcost-v0.11.0) ---
+# fix-kill-floor-holds-on-too-small-task-sample.
+
+
+def test_single_task_two_harness_variance_is_not_evaluable(runner):
+    """mvp_plan §8 kill #1 is defined over the 5-task grid (">=3/5 tasks"). A
+    2-harness run of ONE task previously reported floor_passed=True AND
+    floor_evaluable=True (the latter only checked the harness count), so the CLI
+    printed "kill floor (1.5x) HELD" from a sample the criterion never covers.
+    The sample-size precondition must make the floor unevaluable, while still
+    counting what was measured.
+    """
+    profiles = runner.run_benchmark(task_ids=["swe-bench-mini-001"])
+    vr = runner.variance_report(profiles)
+    assert vr.task_count == 1
+    assert set(vr.harnesses) == set(DEFAULT_HARNESSES)
+    assert vr.tasks_above_floor == 1  # the one measured task does clear 1.5x
+    assert vr.floor_evaluable is False
+    # Not tripped — merely unevaluable: the boolean must not read as a verdict.
+    assert vr.gate_passed is False
+
+
+def test_three_task_run_is_evaluable(runner):
+    """The threshold is a minimum, not a ban: 3 tasks with 2 harnesses make the
+    floor evaluable (the pre-fix behaviour for >=3 tasks must be preserved)."""
+    ids = [t.task_id for t in runner.tasks.tasks][:3]
+    vr = runner.variance_report(runner.run_benchmark(task_ids=ids))
+    assert vr.task_count == 3
+    assert vr.floor_evaluable is True
+    assert vr.floor_passed is True

@@ -206,10 +206,10 @@
           "en": "Configuration",
           "zh": "配置"
         },
-      "body": {
-        "en": "run accepts a configured harness list and task selection; its default path is offline template tokenization. Optional online mode makes real requests. Invalid CLI input — an unknown harness, a non-matching --task, or a bad --gpus spec — surfaces as a one-line error with a non-zero exit, not a traceback. Tokenizer fallback can use character-based estimates, so retain which tokenizer was available when comparing profiles.",
-        "zh": "run 接收配置封装列表和任务选择，默认是离线模板分词；可选在线模式会实际请求。非法 CLI 输入——未知 harness、不匹配的 --task、错误的 --gpus 规格——会输出一行错误并以非零退出码结束，不倾倒 traceback。Tokenizer 回退可能使用字符估算，因此比较 profile 时应保留实际可用 tokenizer 信息。"
-      }
+        "body": {
+          "en": "run accepts a configured harness list and task selection; its default path is offline template tokenization. Optional online mode makes real requests. Degenerate input is rejected, not defaulted: an empty --harnesses value, an unknown harness, a non-matching --task, a bad --gpus spec or --seats below 1 surfaces as a one-line error with a non-zero exit, not a traceback or a plausible-looking table. Outputs state only what the store supports: project reports an unmeasured harness as unmeasured rather than at an invented 1.0x, and the gate line marks the 1.5x kill floor unevaluable below 2 harnesses or 3 tasks. Tokenizer fallback can use character-based estimates, so retain which tokenizer was available when comparing profiles.",
+          "zh": "run 接收配置封装列表和任务选择，默认是离线模板分词；可选在线模式会实际请求。退化输入被拒绝而不是套用默认值：空的 --harnesses、未知 harness、不匹配的 --task、错误的 --gpus 规格或小于 1 的 --seats 都输出一行错误并以非零退出码结束，不会倾倒 traceback，也不会打印看起来合理的表。输出只陈述 store 里真实的依据：project 把未测量的 harness 报为 unmeasured，而不是编造 1.0x；少于 2 个 harness 或 3 个任务时，判据行把 1.5x kill floor 标为不可评估。Tokenizer 回退可能使用字符估算，因此比较 profile 时应保留实际可用 tokenizer 信息。"
+        }
       },
       {
         "title": {
@@ -224,8 +224,14 @@
       }
     ]
   },
-  "content_version": "v0.10.0",
+  "content_version": "v0.11.0",
   "changelog": [
+    {
+      "version": "v0.11.0",
+      "date": "2026-11-20",
+      "zh": "v0.11.0：两处会给出无依据结论的入口被修正。project 只投影有测量的 harness（deepseek-native 作为 1.0x 基准除外）：此前只测了 claude-code-cliproxy 时，未测量的 openai-shape 会以 1.00x「fits」出现在表里，等于编造一次测量；现在它以 unmeasured 列出（project --json 的 unmeasured 字段同理）。--seats 为 0 或负数此前会打印完整投影表（负 deficit、全部 fits），现在输出一行 error 并以退出码 1结束。--harnesses 为空字符串不再静默跑默认两个封装（在线模式下会实际计费），而是用法错误。m1 的 1.5x kill floor 只有在 ≥2 个 harness 且 ≥3 个任务被测量时才给出 HELD/BROKEN——此前 run --task 单个任务也会打印 HELD，而该判据定义在≥3/5 任务上；样本更小时现在显示 SKIPPED 并注明实际 harness/任务数。",
+      "en": "v0.11.0: two surfaces that stated conclusions their input could not support are fixed. project now projects only harnesses that have measurements (plus deepseek-native, the 1.0x reference): previously a store measured with only claude-code-cliproxy showed the unmeasured openai-shape at 1.00x \"fits\", which is a fabricated measurement; it is now listed as unmeasured (same list in the project --json \"unmeasured\" field). A --seats target of 0 or below used to print a full projection table (negative deficits, everything fits); it now prints a one-line error and exits 1. An empty --harnesses value no longer silently runs (and with --online, bills) the default two envelopes; it is a usage error. The m1 1.5x kill floor reports HELD/BROKEN only when >=2 harnesses and >=3 tasks were measured — a single-task run --task previously printed HELD although the criterion is defined over >=3/5 tasks; smaller samples now show SKIPPED with the actual counts."
+    },
     {
       "version": "v0.10.0",
       "date": "2026-10-16",

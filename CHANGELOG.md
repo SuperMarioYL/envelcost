@@ -4,6 +4,46 @@ All notable changes to **envelcost** are documented here. Versions follow the
 grill bug-hunt amendment cadence. Each entry lists the fix-ids from the
 amendment findings YAML.
 
+## [0.11.0] — 2026-11-20
+
+The v0.11.0 grill bug-hunt (amend-envelcost-v0.11.0). Four fixes, all on the two
+surfaces the product demos — the m1 gate line and the `project` table. No
+feature and no new CLI surface: every change removes a verdict or number the
+input could not support. The 65 prior tests still pass; 12 regression tests are
+added (77 total).
+
+### Fixed
+
+- **fix-project-accepts-nonpositive-seats** (`envelcost/projector.py`): a
+  `--seats 0` or `--seats -5` target rendered a complete projection table —
+  negative deficits, every harness "fits" — and exited 0. The seat target is
+  half the projection's input, so it now gets the same `<= 0` guard the GPU
+  count already has in `parse_gpu_spec`: `Projector.project` raises
+  `ValueError("target seats must be >= 1, ...")`, and the `project` command
+  turns it into `error: ...` with exit 1 and no table.
+- **fix-empty-harness-list-silently-runs-defaults** (`envelcost/cli.py`):
+  `--harnesses ""` (an unset shell variable, a stray comma) fell through
+  `tuple(parts) or DEFAULT_HARNESSES` to the default two-envelope grid, silently
+  running — and with `--online`, billing — harnesses the caller meant to
+  exclude. An explicitly empty list is now a usage error naming the valid
+  harnesses.
+- **fix-project-fabricates-parity-for-unmeasured-harness**
+  (`envelcost/projector.py`): `multiplier_for` returned 1.0 for any harness with
+  no measured profile, so a store measured with only `claude-code-cliproxy`
+  projected `openai-shape` at 1.00x and "fits" — a fabricated measurement on the
+  commercial hook. Only the baseline (1.0x by definition) keeps that ratio; an
+  unmeasured non-baseline harness now has no multiplier, gets no row and no fit
+  verdict, and is reported on `Projection.unmeasured` (printed by the human
+  summary, emitted as `"unmeasured": [...]` by `project --json`).
+- **fix-kill-floor-holds-on-too-small-task-sample** (`envelcost/runner.py`):
+  `envelcost run --task swe-bench-mini-001` printed "kill floor (1.5x) HELD"
+  from a one-task sample, although mvp_plan §8 kill #1 is defined over ">=3/5
+  tasks". `VarianceReport.floor_evaluable` now requires >=2 distinct harnesses
+  **and** >=3 tasks (`VARIANCE_MIN_HARNESSES` / `VARIANCE_MIN_TASKS`, shared
+  with the done-bar gate), so the CLI and the persisted report markdown say
+  "skipped / unevaluable" and name the sampled harness/task counts instead of
+  inventing a verdict.
+
 ## [0.10.0] — 2026-10-16
 
 The v0.10.0 grill bug-hunt (amend-envelcost-v0.10.0). Two fixes: the

@@ -216,3 +216,80 @@ def test_project_partial_single_harness_store_includes_baseline_row(tmp_path):
     assert native.fits_target is True
     # fits_harness must return True (NOT None -> printed as 'does NOT fit').
     assert projection.fits_harness("deepseek-native") is True
+
+
+# --- v0.11.0 grill bug-hunt fixes (amend-envelcost-v0.11.0) ---
+# fix-project-accepts-nonpositive-seats + fix-project-fabricates-parity-for-unmeasured-harness.
+
+
+def _single_harness_profiles(harness: str, mult: float, n_tasks: int = 5) -> list[EnvelopeProfile]:
+    """Profiles measured for exactly ONE (non-baseline) harness — every other
+    harness in the summary set is unmeasured."""
+    from datetime import datetime, timezone
+
+    return [
+        EnvelopeProfile(
+            harness=harness,
+            model="deepseek-v4-flash",
+            task_id=f"swe-bench-mini-{i + 1:03d}",
+            tool_call_envelope_sha="abc",
+            input_tokens=int(1000 * mult),
+            output_tokens=0,
+            envelope_overhead_tokens=int(1000 * mult) - 1000,
+            quality_score=1.0,
+            multiplier_vs_baseline=mult,
+            measured_at=datetime.now(timezone.utc),
+        )
+        for i in range(n_tasks)
+    ]
+
+
+def test_project_rejects_nonpositive_seats():
+    """A zero/negative --seats has no meaning: `project` previously rendered a
+    full fits/no-fit table (with negative deficits) and exited 0. The seat
+    target is half the projection's input, so it gets the same <= 0 guard the
+    GPU count already has in parse_gpu_spec."""
+    proj = Projector(profiles=_fake_profiles())
+    for seats in (0, -5):
+        with pytest.raises(ValueError, match="seats must be >= 1"):
+            proj.project("8xH100", seats)
+
+
+def test_multiplier_for_baseline_stays_parity():
+    """The baseline is 1.0x BY DEFINITION (every other multiplier is measured
+    against it), so an unmeasured deepseek-native is still known — but an
+    unmeasured non-baseline harness has an UNKNOWN multiplier (None), not 1.0x.
+    Also pins the >= 1 seat guard: a 1-seat projection still evaluates the floor.
+    """
+    proj = Projector(profiles=[])
+    assert proj.multiplier_for("deepseek-native") == 1.0
+    assert proj.multiplier_for("openai-shape") is None
+    assert proj.multiplier_for("claude-code-cliproxy") is None
+
+
+def test_project_omits_unmeasured_harness_from_rows():
+    """A store measured with only claude-code-cliproxy previously projected
+    openai-shape at a fabricated 1.00x / "fits". It must now be absent from
+    `rows` (no ratio, no verdict) and named on `unmeasured` — including in the
+    machine-readable to_dict() payload."""
+    proj = Projector(profiles=_single_harness_profiles("claude-code-cliproxy", 3.2))
+    projection = proj.project("8xH100", 50)
+    assert {r.harness for r in projection.rows} == {
+        "claude-code-cliproxy",
+        "deepseek-native",
+    }
+    assert projection.unmeasured == ["openai-shape"]
+    assert projection.fits_harness("openai-shape") is None
+    assert projection.fits_harness("deepseek-native") is True
+    payload = projection.to_dict()
+    assert payload["unmeasured"] == ["openai-shape"]
+    assert all(r["harness"] != "openai-shape" for r in payload["rows"])
+
+
+def test_project_empty_store_marks_both_named_harnesses():
+    """No measurements at all: only the definitional baseline row is projected;
+    the other summary-named harness is reported unmeasured instead of 1.0x."""
+    proj = Projector(profiles=[])
+    projection = proj.project("4xH100", 30)
+    assert {r.harness for r in projection.rows} == {"deepseek-native"}
+    assert projection.unmeasured == ["openai-shape"]

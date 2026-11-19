@@ -25,7 +25,12 @@ from . import __version__
 from .envelope import ENVELOPE_NAMES
 from .projector import AMORTIZATION_YEARS, Projector
 from .report import Reporter
-from .runner import DEFAULT_HARNESSES, Runner
+from .runner import (
+    DEFAULT_HARNESSES,
+    VARIANCE_MIN_HARNESSES,
+    VARIANCE_MIN_TASKS,
+    Runner,
+)
 
 app = typer.Typer(
     name="envelcost",
@@ -57,12 +62,21 @@ def _main(
 
 def _parse_harnesses(raw: str) -> tuple[str, ...]:
     parts = [h.strip() for h in raw.split(",") if h.strip()]
+    if not parts:
+        # An explicitly empty list (an unset shell var, a stray comma) is a user
+        # error like any other invalid harness value. It previously fell through
+        # `tuple(parts) or DEFAULT_HARNESSES` to the default two-envelope grid —
+        # silently running (and, with --online, billing) harnesses the caller
+        # thought they had excluded.
+        raise typer.BadParameter(
+            f"empty harness list. valid: {', '.join(ENVELOPE_NAMES)}"
+        )
     bad = [h for h in parts if h not in ENVELOPE_NAMES]
     if bad:
         raise typer.BadParameter(
             f"unknown harness(es): {', '.join(bad)}. valid: {', '.join(ENVELOPE_NAMES)}"
         )
-    return tuple(parts) or DEFAULT_HARNESSES
+    return tuple(parts)
 
 
 def _resolve_task_ids(all_ids: list[str], task: str) -> list[str]:
@@ -156,19 +170,20 @@ def run(
     if vr.floor_evaluable:
         floor_status = "HELD" if vr.floor_passed else "BROKEN — halt"
     else:
-        floor_status = "SKIPPED (<2 harnesses)"
+        floor_status = "SKIPPED (<2 harnesses or <3 tasks)"
     typer.echo(
         f"m1 variance gate: {vr.tasks_above_gate}/{vr.task_count} tasks above 2.0x "
         f"(done bar {'PASSED' if vr.gate_passed else 'NOT YET'}); "
         f"kill floor (1.5x) {floor_status}"
     )
     if not vr.floor_evaluable:
-        # mvp_plan §8 kill #1 is about cross-envelope variance; a single-harness
-        # (baseline-only) run cannot evaluate it — surface a clear note and do
-        # NOT falsify the thesis / exit 1.
+        # mvp_plan §8 kill #1 is about cross-envelope variance over >=3/5 tasks;
+        # a smaller sample (one harness, or a `--task` subset) cannot evaluate
+        # it — surface both counts and do NOT report a HELD/BROKEN verdict.
         typer.echo(
-            f"insufficient harnesses for cross-variance evaluation "
-            f"(ran {len(vr.harnesses)}; need >=2); skipping kill gate"
+            f"insufficient sample for cross-variance evaluation "
+            f"(harnesses: {len(vr.harnesses)}/{VARIANCE_MIN_HARNESSES}, "
+            f"tasks: {vr.task_count}/{VARIANCE_MIN_TASKS}); skipping kill gate"
         )
     elif not vr.floor_passed:
         typer.echo(
@@ -201,6 +216,21 @@ def report(
         f"\nwrote: {runner.store_dir / 'envelcost-report.md'} "
         f"+ {runner.store_dir / 'envelcost-report.json'}"
     )
+
+
+def _fit_verdict(projection, harness: str) -> str:
+    """Render one harness's fit verdict, keeping "unmeasured" distinct.
+
+    `fits_harness` returns None when there is no row (no measurement), and the
+    old truthiness check printed that as "does NOT fit" — a false verdict
+    (fix-project-summary-false-not-fit). The opposite collapse — projecting an
+    unmeasured harness at 1.0x so it "fits" — is now also impossible, because
+    `project` omits such rows (fix-project-fabricates-parity-for-unmeasured-harness).
+    """
+    fits = projection.fits_harness(harness)
+    if fits is None:
+        return f"{harness} unmeasured"
+    return f"{harness} {'fits' if fits else 'does NOT fit'}"
 
 
 @app.command()
@@ -266,14 +296,18 @@ def project(
             f"¥{r.capex_per_seat_cny:>10,.0f} ¥{r.annual_cost_per_seat_cny:>9,.0f}"
         )
     typer.echo("")
-    fits_native = projection.fits_harness("deepseek-native")
-    fits_openai = projection.fits_harness("openai-shape")
     typer.echo(
         f"on {projection.gpu_count}×{projection.gpu.name} / {seats} seats: "
-        f"deepseek-native {'fits' if fits_native else 'does NOT fit'}, "
-        f"openai-shape {'fits' if fits_openai else 'does NOT fit'} "
+        f"{_fit_verdict(projection, 'deepseek-native')}, "
+        f"{_fit_verdict(projection, 'openai-shape')} "
         f"(capex amortized over {AMORTIZATION_YEARS}y)"
     )
+    if projection.unmeasured:
+        typer.echo(
+            "unmeasured (no profiles in the store): "
+            + ", ".join(projection.unmeasured)
+            + " — run `envelcost run --harnesses <name>` to project them"
+        )
 
 
 def main() -> None:

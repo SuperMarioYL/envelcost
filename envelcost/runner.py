@@ -32,11 +32,17 @@ __all__ = [
     "DEFAULT_HARNESSES",
     "VARIANCE_GATE_MULTIPLIER",
     "VARIANCE_FLOOR",
+    "VARIANCE_MIN_HARNESSES",
+    "VARIANCE_MIN_TASKS",
 ]
 
 # m1 gate: mvp_plan §8 kill #1 — halt if cross-envelope variance < 1.5x.
 VARIANCE_FLOOR = 1.5
 VARIANCE_GATE_MULTIPLIER = 2.0  # "done" bar = >2x on >=3/5 tasks.
+# §8 kill #1 is defined over the 5-task grid ("<1.5x on >=3/5 tasks"), so a
+# sample smaller than these minimums cannot evaluate it in either direction.
+VARIANCE_MIN_HARNESSES = 2
+VARIANCE_MIN_TASKS = 3
 DEFAULT_HARNESSES = ("deepseek-native", "openai-shape")
 
 
@@ -52,7 +58,7 @@ class VarianceReport:
     tasks_above_floor: int
     gate_passed: bool  # >=3/5 tasks above 2x (done bar)
     floor_passed: bool  # >=3/5 tasks above 1.5x (kill floor)
-    floor_evaluable: bool  # False when <2 harnesses ran (gate cannot fire)
+    floor_evaluable: bool  # False when <2 harnesses or <3 tasks ran
 
     def to_dict(self) -> dict:
         return {
@@ -153,13 +159,17 @@ class Runner:
             if spread >= VARIANCE_FLOOR:
                 above_floor += 1
         n = len(per_task)
-        # mvp_plan §8 kill #1 is about CROSS-envelope variance: a single-harness
-        # (baseline-only) run cannot evaluate it. The kill floor is therefore
-        # skipped (held, not tripped) when fewer than 2 distinct harnesses were
-        # measured — a single-harness run must not falsify the thesis.
-        floor_evaluable = len(harnesses) >= 2
-        gate = n >= 3 and above_gate >= 3
-        floor = (not (n >= 3 and above_floor < 3)) if floor_evaluable else True
+        # mvp_plan §8 kill #1 is about CROSS-envelope variance over the 5-task
+        # grid: it is unevaluable when fewer than 2 distinct harnesses were
+        # measured (no comparison) OR fewer than 3 tasks were measured (the
+        # criterion's ">=3/5 tasks" sample size). Both preconditions must hold;
+        # the old harness-only check let `run --task <one id>` report the floor
+        # as HELD from a single task the criterion never covers.
+        floor_evaluable = (
+            len(harnesses) >= VARIANCE_MIN_HARNESSES and n >= VARIANCE_MIN_TASKS
+        )
+        gate = n >= VARIANCE_MIN_TASKS and above_gate >= VARIANCE_MIN_TASKS
+        floor = (above_floor >= VARIANCE_MIN_TASKS) if floor_evaluable else True
         return VarianceReport(
             model=self.model,
             task_count=n,

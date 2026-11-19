@@ -505,3 +505,119 @@ def test_run_command_computes_variance_report_once(cli_runner, tmp_path, monkeyp
     assert len(calls) == 1
     # The rendered output still carries the full gate line.
     assert "m1 variance gate" in result.output
+
+
+# --- v0.11.0 grill bug-hunt fixes (amend-envelcost-v0.11.0) ---
+
+
+def test_project_nonpositive_seats_clean_error(cli_runner, tmp_path):
+    """fix-project-accepts-nonpositive-seats: `project --seats 0` / `-5` rendered
+    a complete fits/no-fit table (negative deficits) and exited 0. Now: a clean
+    one-line error, exit 1, no table, no escaping exception."""
+    store = tmp_path / ".envelcost"
+    for seats in ("0", "-5"):
+        result = cli_runner.invoke(
+            app,
+            ["project", "--gpus", "8xH100", "--seats", seats, "--store", str(store)],
+        )
+        assert result.exit_code == 1, result.output
+        assert isinstance(result.exception, SystemExit), repr(result.exception)
+        assert "error:" in result.output, result.output
+        assert "seats must be >= 1" in result.output, result.output
+        assert "Traceback" not in result.output
+        # No projection table and no verdict line.
+        assert "total capex" not in result.output, result.output
+        assert "does NOT fit" not in result.output
+
+
+def test_empty_harness_list_is_rejected(cli_runner, tmp_path):
+    """fix-empty-harness-list-silently-runs-defaults: `--harnesses ''` silently
+    ran (and with --online billed) the default two-envelope grid. An explicitly
+    empty list is a user error, like every other invalid harness value."""
+    store = tmp_path / ".envelcost"
+    for raw in ("", ","):
+        result = cli_runner.invoke(
+            app, ["run", "--harnesses", raw, "--store", str(store)]
+        )
+        assert result.exit_code == 2, result.output
+        assert "empty harness list" in result.output, result.output
+        assert "deepseek-native" in result.output  # the valid names are listed
+    assert not (store / "profiles.jsonl").exists()
+
+
+def test_project_partial_store_marks_unmeasured_not_fits(cli_runner, tmp_path):
+    """fix-project-fabricates-parity-for-unmeasured-harness (end-to-end): after
+    measuring ONLY claude-code-cliproxy, `project` printed openai-shape at
+    1.00x / "fits" — a fabricated measurement. It must now say unmeasured."""
+    store = tmp_path / ".envelcost"
+    run_result = cli_runner.invoke(
+        app, ["run", "--harnesses", "claude-code-cliproxy", "--store", str(store)]
+    )
+    assert run_result.exit_code == 0, run_result.output
+
+    result = cli_runner.invoke(
+        app, ["project", "--gpus", "8xH100", "--seats", "50", "--store", str(store)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "openai-shape unmeasured" in result.output, result.output
+    assert "openai-shape fits" not in result.output
+    assert "openai-shape does NOT fit" not in result.output
+    # The measured harness still gets a real row (its 3.2x ratio means NO) and
+    # the definitional baseline still gets its verdict.
+    assert "claude-code-cliproxy  3.14x    64    20     NO" in result.output, result.output
+    assert "deepseek-native fits" in result.output
+    # The table must not carry a fabricated openai-shape row.
+    assert "openai-shape          1.00x" not in result.output
+
+
+def test_project_json_reports_unmeasured_list(cli_runner, tmp_path):
+    """The --json payload is what CI/scripts read: it must carry the unmeasured
+    names instead of a fabricated fits_target row."""
+    store = tmp_path / ".envelcost"
+    run_result = cli_runner.invoke(
+        app, ["run", "--harnesses", "claude-code-cliproxy", "--store", str(store)]
+    )
+    assert run_result.exit_code == 0, run_result.output
+    result = cli_runner.invoke(
+        app,
+        ["project", "--json", "--gpus", "8xH100", "--seats", "50", "--store", str(store)],
+    )
+    assert result.exit_code == 0, result.output
+    import json as _json
+
+    parsed = _json.loads(result.output)
+    assert parsed["unmeasured"] == ["openai-shape"]
+    assert all(r["harness"] != "openai-shape" for r in parsed["rows"])
+    assert {r["harness"] for r in parsed["rows"]} == {
+        "claude-code-cliproxy",
+        "deepseek-native",
+    }
+
+
+def test_single_task_run_skips_kill_gate(cli_runner, tmp_path):
+    """fix-kill-floor-holds-on-too-small-task-sample: a 1-task run must not print
+    "kill floor (1.5x) HELD" — the criterion is defined over >=3/5 tasks."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app, ["run", "--task", "swe-bench-mini-001", "--store", str(store)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "HELD" not in result.output, result.output
+    assert "SKIPPED" in result.output, result.output
+    # The explanatory line names the sample that fell short.
+    assert "skipping kill gate" in result.output
+    assert "tasks: 1/3" in result.output, result.output
+
+
+def test_single_task_report_md_says_skipped(cli_runner, tmp_path):
+    """The persisted report regenerated by `run` must mirror the CLI: a 1-task
+    sample is unevaluable, never "held"."""
+    store = tmp_path / ".envelcost"
+    result = cli_runner.invoke(
+        app, ["run", "--task", "swe-bench-mini-001", "--store", str(store)]
+    )
+    assert result.exit_code == 0, result.output
+    md = (store / "envelcost-report.md").read_text(encoding="utf-8")
+    assert "kill floor: skipped" in md, md
+    assert "gate: unevaluable" in md, md
+    assert "held" not in md, md
